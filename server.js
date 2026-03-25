@@ -16,7 +16,7 @@ const io     = new Server(server, {
 });
 
 // 静态文件（客户端HTML）
-app.use(express.static(path.join(__dirname, '../client')));
+app.use(express.static(path.join(__dirname, 'client')));
 
 // ════════════════════════════════════════════
 //  常量
@@ -24,7 +24,7 @@ app.use(express.static(path.join(__dirname, '../client')));
 const SUITS  = ['spade','heart','diamond','club'];
 const SB     = 25;
 const BB     = 50;
-const START_CHIPS = 1000;
+const DEFAULT_START_CHIPS = 1000;
 
 // ════════════════════════════════════════════
 //  牌工具
@@ -162,15 +162,18 @@ function computeAI(p, G) {
 const rooms = new Map(); // roomId -> Room
 
 class Room {
-  constructor(id, hostSocketId, hostName, aiCount) {
-    this.id         = id;
-    this.hostId     = hostSocketId;
-    this.aiCount    = aiCount || 0;
-    this.phase      = 'waiting';  // waiting | playing
-    this.players    = [];         // [{socketId, name, chips, ...}]
-    this.maxPlayers = 6;
-    this.G          = null;       // 游戏状态
-    this.aiTimers   = [];
+  constructor(id, hostSocketId, hostName, aiCount, startChips, actionTimeout) {
+    this.id           = id;
+    this.hostId       = hostSocketId;
+    this.aiCount      = aiCount || 0;
+    this.phase        = 'waiting';  // waiting | playing
+    this.players      = [];
+    this.maxPlayers   = 6;
+    this.G            = null;
+    this.aiTimers     = [];
+    this.startChips   = startChips || DEFAULT_START_CHIPS;
+    this.actionTimeout = actionTimeout || 0; // 0=无限制，单位秒
+    this.turnTimer    = null; // 当前行动倒计时
 
     // 加入房主
     this.addPlayer(hostSocketId, hostName);
@@ -182,7 +185,7 @@ class Room {
     this.players.push({
       socketId,
       name,
-      chips: START_CHIPS,
+      chips: this.startChips,
       isAI: false,
       id: socketId,
     });
@@ -194,7 +197,6 @@ class Room {
     if (this.players.length === 0) {
       rooms.delete(this.id);
     } else if (this.hostId === socketId) {
-      // 换房主
       this.hostId = this.players[0].socketId;
     }
   }
@@ -204,24 +206,27 @@ class Room {
     const G = this.G;
     if (!G) return null;
     return {
-      phase:       G.phase,
-      pot:         G.pot,
-      community:   G.community,
-      currentBet:  G.currentBet,
-      minRaise:    G.minRaise,
-      dealerIdx:   G.dealerIdx,
-      actIdx:      G.actIdx,
-      roundNum:    G.roundNum,
+      phase:        G.phase,
+      pot:          G.pot,
+      community:    G.community,
+      currentBet:   G.currentBet,
+      minRaise:     G.minRaise,
+      dealerIdx:    G.dealerIdx,
+      actIdx:       G.actIdx,
+      roundNum:     G.roundNum,
+      actionTimeout: this.actionTimeout,
+      gameOver:     G.gameOver || false,
       players: G.players.map(p => ({
-        id:      p.id,
-        name:    p.name,
-        chips:   p.chips,
-        bet:     p.bet,
-        folded:  p.folded,
-        allIn:   p.allIn,
-        isAI:    p.isAI,
-        isHuman: p.isHuman,
+        id:        p.id,
+        name:      p.name,
+        chips:     p.chips,
+        bet:       p.bet,
+        folded:    p.folded,
+        allIn:     p.allIn,
+        isAI:      p.isAI,
+        isHuman:   p.isHuman,
         cardCount: p.holeCards.length,
+        eliminated: p.eliminated || false,
       })),
     };
   }
@@ -240,6 +245,7 @@ function startGame(room) {
     allIn:     false,
     isHuman:   true,
     isAI:      false,
+    eliminated: false,
   }));
 
   // 添加AI
@@ -248,13 +254,14 @@ function startGame(room) {
       id:        'ai_' + i,
       socketId:  null,
       name:      AI_NAMES[i],
-      chips:     START_CHIPS,
+      chips:     room.startChips,
       bet:       0,
       holeCards: [],
       folded:    false,
       allIn:     false,
       isHuman:   false,
       isAI:      true,
+      eliminated: false,
     });
   }
 
@@ -271,6 +278,7 @@ function startGame(room) {
     roundNum:    0,
     acted:       new Set(),
     lastRaiser:  null,
+    gameOver:    false,
   };
 
   room.phase = 'playing';
@@ -307,8 +315,8 @@ function inHandPlayers(G) {
 function startNewHand(room) {
   const G = room.G;
 
-  // 补充筹码（测试用）
-  G.players.forEach(p => { if (p.chips <= 0) p.chips = START_CHIPS; });
+  // 清除倒计时
+  clearTurnTimer(room);
 
   G.roundNum++;
   G.deck      = shuffle(makeDeck());
@@ -318,13 +326,14 @@ function startNewHand(room) {
   G.minRaise   = BB;
   G.acted      = new Set();
   G.lastRaiser = null;
+  G.gameOver   = false;
   G.players.forEach(p => { p.bet=0; p.holeCards=[]; p.folded=false; p.allIn=false; });
 
-  // 移动庄家
+  // 移动庄家（跳过已淘汰/无筹码的）
   G.dealerIdx = nextActiveIdx(G, G.dealerIdx);
 
-  // 发牌
-  activePlayers(G).forEach(p => {
+  // 发牌（只发给有筹码的玩家）
+  G.players.filter(p => p.chips > 0).forEach(p => {
     p.holeCards.push(G.deck.pop(), G.deck.pop());
   });
 
@@ -338,7 +347,7 @@ function startNewHand(room) {
 
   setPhase(G, 'preflop');
 
-  // 广播游戏开始（各发各的底牌）
+  // 广播游戏开始
   broadcastState(room, 'hand_started');
 
   // Pre-Flop从BB左边开始
@@ -357,7 +366,6 @@ function broadcastState(room, event) {
   const G    = room.G;
   const pub  = room.publicState();
 
-  // 给每个真人玩家发带自己底牌的状态
   G.players.filter(p => p.isHuman).forEach(p => {
     const socket = io.sockets.sockets.get(p.socketId);
     if (!socket) return;
@@ -367,9 +375,6 @@ function broadcastState(room, event) {
       myId:    p.id,
     });
   });
-
-  // 旁观者/其他房间成员（无底牌）
-  // （此处暂略，可扩展）
 }
 
 // 通知轮到谁了
@@ -382,19 +387,44 @@ function notifyTurn(room) {
     const socket = io.sockets.sockets.get(cur.socketId);
     if (socket) {
       socket.emit('your_turn', {
-        callAmount: Math.max(0, G.currentBet - cur.bet),
-        minRaise:   G.currentBet + G.minRaise,
-        maxRaise:   cur.chips + cur.bet,
-        currentBet: G.currentBet,
-        pot:        G.pot,
+        callAmount:    Math.max(0, G.currentBet - cur.bet),
+        minRaise:      G.currentBet + G.minRaise,
+        maxRaise:      cur.chips + cur.bet,
+        currentBet:    G.currentBet,
+        pot:           G.pot,
+        actionTimeout: room.actionTimeout,
       });
     }
   }
 }
 
+// ── 倒计时管理 ──
+function clearTurnTimer(room) {
+  if (room.turnTimer) {
+    clearTimeout(room.turnTimer);
+    room.turnTimer = null;
+  }
+}
+
+function startTurnTimer(room) {
+  if (!room.actionTimeout || room.actionTimeout <= 0) return;
+  clearTurnTimer(room);
+  room.turnTimer = setTimeout(() => {
+    const G = room.G;
+    if (!G || G.phase === 'showdown') return;
+    const cur = G.players[G.actIdx];
+    if (!cur || cur.isAI) return;
+    // 超时自动弃牌
+    broadcastMsg(room, `⏰ ${cur.name} 超时，自动弃牌`, cur.id);
+    applyAction(room, cur.id, 'fold');
+  }, room.actionTimeout * 1000);
+}
+
 function scheduleAction(room) {
   const G   = room.G;
   const cur = G.players[G.actIdx];
+
+  clearTurnTimer(room);
 
   if (cur.isAI) {
     const delay = 700 + Math.random() * 1500;
@@ -405,6 +435,7 @@ function scheduleAction(room) {
     room.aiTimers.push(timer);
   } else {
     notifyTurn(room);
+    startTurnTimer(room);
   }
 }
 
@@ -412,6 +443,8 @@ function applyAction(room, playerId, type, raiseTarget) {
   const G = room.G;
   const p = G.players.find(pl => pl.id === playerId);
   if (!p) return;
+
+  clearTurnTimer(room);
 
   const callAmt = Math.max(0, G.currentBet - p.bet);
   let msg = '';
@@ -424,7 +457,6 @@ function applyAction(room, playerId, type, raiseTarget) {
 
     case 'check':
       if (callAmt > 0) {
-        // 非法操作，转为跟注
         const actual = Math.min(callAmt, p.chips);
         p.chips -= actual; p.bet += actual; G.pot += actual;
         if (p.chips === 0) p.allIn = true;
@@ -479,10 +511,8 @@ function applyAction(room, playerId, type, raiseTarget) {
       return;
   }
 
-  // 广播行动日志
   broadcastMsg(room, msg, playerId);
   broadcastState(room, 'state_update');
-
   setTimeout(() => advanceTurn(room), 400);
 }
 
@@ -599,12 +629,13 @@ function doShowdown(room) {
   if (remain > 0) winners[0].chips += remain;
   G.pot = 0;
 
-  // 构建摊牌数据（所有人的底牌都揭示）
+  // 构建摊牌数据（只揭示在手的人的底牌，折叠玩家不揭示）
   const showdownData = inHand.map(p => ({
     id:        p.id,
     name:      p.name,
     holeCards: p.holeCards,
     handName:  hands[p.id] ? hands[p.id].name : '',
+    handRank:  hands[p.id] ? hands[p.id].rank : 0,
     isWinner:  winners.some(w => w.id === p.id),
   }));
 
@@ -614,6 +645,22 @@ function doShowdown(room) {
 function endHand(room, winners, showdownData) {
   const G   = room.G;
   setPhase(G, 'showdown');
+
+  // 检查是否有人筹码归零（游戏结束条件）
+  const eliminatedPlayers = G.players.filter(p => p.chips <= 0 && !p.eliminated);
+  eliminatedPlayers.forEach(p => p.eliminated = true);
+
+  // 检查游戏是否结束：只剩1个有筹码的玩家（或者有真人玩家筹码归零）
+  const activePls = G.players.filter(p => p.chips > 0);
+  const humanEliminated = eliminatedPlayers.filter(p => p.isHuman);
+
+  // 游戏结束：只剩一个有筹码的人，或有人筹码清零
+  const gameIsOver = activePls.length <= 1 || humanEliminated.length > 0 ||
+    G.players.filter(p => p.isHuman && p.chips <= 0).length > 0;
+
+  if (gameIsOver) {
+    G.gameOver = true;
+  }
 
   const pub = room.publicState();
   G.players.filter(p => p.isHuman).forEach(p => {
@@ -625,6 +672,8 @@ function endHand(room, winners, showdownData) {
       myId:         p.id,
       showdownData: showdownData || null,
       winnerIds:    winners.map(w => w.id),
+      gameOver:     G.gameOver,
+      eliminatedPlayers: eliminatedPlayers.map(p => ({ id: p.id, name: p.name })),
     });
   });
 }
@@ -636,17 +685,21 @@ io.on('connection', (socket) => {
   console.log(`[连接] ${socket.id}`);
 
   // 创建房间
-  socket.on('create_room', ({ name, aiCount }) => {
+  socket.on('create_room', ({ name, aiCount, startChips, actionTimeout }) => {
     const roomId = Math.random().toString(36).substr(2,6).toUpperCase();
-    const room   = new Room(roomId, socket.id, name || '玩家', aiCount || 0);
+    const chips  = Math.max(100, Math.min(100000, parseInt(startChips) || DEFAULT_START_CHIPS));
+    const timeout = parseInt(actionTimeout) || 0;
+    const room   = new Room(roomId, socket.id, name || '玩家', aiCount || 0, chips, timeout);
     rooms.set(roomId, room);
     socket.join(roomId);
     socket.roomId = roomId;
     socket.emit('room_created', {
       roomId,
+      startChips: chips,
+      actionTimeout: timeout,
       players: room.players.map(p => ({ id:p.socketId, name:p.name })),
     });
-    console.log(`[房间创建] ${roomId} 房主:${name}`);
+    console.log(`[房间创建] ${roomId} 房主:${name} 筹码:${chips} 倒计时:${timeout}s`);
   });
 
   // 加入房间
@@ -672,7 +725,6 @@ io.on('connection', (socket) => {
     socket.join(roomId.toUpperCase());
     socket.roomId = roomId.toUpperCase();
 
-    // 通知所有人
     io.to(room.id).emit('player_joined', {
       players: room.players.map(p => ({ id:p.socketId, name:p.name })),
       newPlayer: name,
@@ -681,6 +733,8 @@ io.on('connection', (socket) => {
       roomId:  room.id,
       players: room.players.map(p => ({ id:p.socketId, name:p.name })),
       isHost:  room.hostId === socket.id,
+      startChips: room.startChips,
+      actionTimeout: room.actionTimeout,
     });
     console.log(`[加入] ${name} 加入 ${room.id}`);
   });
@@ -691,10 +745,6 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (room.hostId !== socket.id) {
       socket.emit('error', { msg: '只有房主可以开始游戏' });
-      return;
-    }
-    if (room.players.length < 1) {
-      socket.emit('error', { msg: '至少需要1个真人玩家' });
       return;
     }
     startGame(room);
@@ -708,7 +758,6 @@ io.on('connection', (socket) => {
 
     const G   = room.G;
     const cur = G.players[G.actIdx];
-    // 验证是否轮到该玩家
     if (cur.socketId !== socket.id) {
       socket.emit('error', { msg: '还没轮到你' });
       return;
@@ -721,10 +770,48 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.roomId);
     if (!room || !room.G) return;
     if (room.G.phase !== 'showdown') return;
-    // 清除AI定时器
+    if (room.G.gameOver) return; // 游戏结束时不允许直接下一手
     room.aiTimers.forEach(t => clearTimeout(t));
     room.aiTimers = [];
     startNewHand(room);
+  });
+
+  // 游戏结束后继续（重置筹码）
+  socket.on('continue_game', ({ startChips }) => {
+    const room = rooms.get(socket.roomId);
+    if (!room || !room.G) return;
+    if (!room.G.gameOver) return;
+
+    const chips = Math.max(100, Math.min(100000, parseInt(startChips) || room.startChips));
+    room.startChips = chips;
+
+    // 重置所有玩家筹码（包括AI）
+    room.G.players.forEach(p => {
+      p.chips = chips;
+      p.eliminated = false;
+    });
+    room.G.gameOver = false;
+
+    room.aiTimers.forEach(t => clearTimeout(t));
+    room.aiTimers = [];
+    startNewHand(room);
+
+    // 通知继续
+    io.to(room.id).emit('game_continued', { startChips: chips });
+  });
+
+  // 游戏结束后解散
+  socket.on('dissolve_room', () => {
+    const room = rooms.get(socket.roomId);
+    if (!room) return;
+    if (room.hostId !== socket.id) {
+      socket.emit('error', { msg: '只有房主可以解散房间' });
+      return;
+    }
+    clearTurnTimer(room);
+    room.aiTimers.forEach(t => clearTimeout(t));
+    io.to(room.id).emit('room_dissolved', {});
+    rooms.delete(room.id);
   });
 
   // 断开连接
@@ -744,7 +831,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 获取房间列表（可选）
+  // 获取房间列表
   socket.on('list_rooms', () => {
     const list = [];
     rooms.forEach((room, id) => {

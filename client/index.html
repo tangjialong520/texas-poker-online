@@ -54,11 +54,12 @@ body {
 .lobby-divider { text-align: center; color: #555; font-size: 13px; }
 .field-row { display: flex; flex-direction: column; gap: 5px; }
 .field-row label { font-size: 12px; color: #aaa; }
-.field-row input {
+.field-row input, .field-row select {
   background: #1a3a1a; border: 1px solid #3a6a3a;
   color: #eee; padding: 8px 12px; border-radius: 7px; font-size: 14px; outline: none;
 }
-.field-row input:focus { border-color: #7fff7f; }
+.field-row input:focus, .field-row select:focus { border-color: #7fff7f; }
+.field-row select option { background: #1a3a1a; }
 .ai-count-row {
   display: flex; align-items: center; gap: 10px; font-size: 14px; color: #ccc;
 }
@@ -96,6 +97,7 @@ body {
   background: #1a3a1a; padding: 10px; border-radius: 8px;
 }
 #waiting-players { font-size: 13px; color: #9fc; }
+#waiting-settings { font-size: 12px; color: #aaa; padding: 6px 10px; background: rgba(255,255,255,.05); border-radius: 6px; }
 #copy-btn {
   background: #1a3a1a; border: 1px solid #3a6a3a;
   color: #9fc; padding: 6px 16px; border-radius: 6px;
@@ -145,6 +147,24 @@ body {
 .opp-cards { display: flex; justify-content: center; gap: 5px; margin-top: 6px; min-height: 52px; }
 .opp-reveal { margin-top: 6px; font-size: 12px; color: #ffd700; }
 .opp-reveal .hand-name { margin-top: 4px; font-size: 12px; color: #f0c080; }
+
+/* ── 倒计时 ── */
+#timer-bar-wrap {
+  width: 100%; max-width: 980px;
+  height: 6px;
+  background: rgba(255,255,255,.08);
+  display: none;
+}
+#timer-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #ffd700, #f44336);
+  width: 100%;
+  transition: width 1s linear;
+}
+#timer-display {
+  font-size: 13px; color: #ffd700; text-align: center;
+  min-height: 18px; font-weight: bold;
+}
 
 /* 牌桌中心 */
 #table-center {
@@ -272,11 +292,105 @@ body {
   border-radius: 8px; font-size: 14px; display: none; z-index: 999;
 }
 
+/* ── 结算弹窗 ── */
+#showdown-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 200;
+  align-items: center; justify-content: center;
+  animation: fadeIn .3s ease;
+}
+#showdown-overlay.show { display: flex; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+#showdown-box {
+  background: linear-gradient(145deg, #1a3a1a, #0e200e);
+  border: 2px solid #4a8a4a;
+  border-radius: 18px;
+  padding: 32px 40px;
+  min-width: 340px; max-width: 90vw;
+  text-align: center;
+  animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes popIn { from{transform:scale(.5);opacity:0} to{transform:scale(1);opacity:1} }
+#showdown-box .winner-title {
+  font-size: 28px; font-weight: bold; color: #ffd700;
+  margin-bottom: 6px;
+  text-shadow: 0 0 20px rgba(255,215,0,.6);
+}
+#showdown-box .winner-name {
+  font-size: 36px; font-weight: 900; color: #fff;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 12px rgba(255,255,255,.3);
+}
+#showdown-box .winner-hand {
+  font-size: 20px; color: #ffa040;
+  margin-bottom: 16px; font-weight: bold;
+}
+#showdown-box .showdown-cards {
+  display: flex; justify-content: center; gap: 8px; margin-bottom: 16px;
+}
+#showdown-box .other-hands {
+  font-size: 13px; color: #aaa; margin-bottom: 18px;
+}
+#showdown-box .other-hands .other-hand-row {
+  padding: 5px 0; border-top: 1px solid rgba(255,255,255,.08);
+}
+#showdown-box .close-btn {
+  background: #2a6a2a; color: #fff; border: none;
+  padding: 10px 32px; border-radius: 8px; font-size: 15px; font-weight: bold;
+  cursor: pointer;
+}
+#showdown-box .close-btn:hover { background: #378037; }
+
+/* ── 游戏结束弹窗 ── */
+#gameover-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.85);
+  z-index: 300;
+  align-items: center; justify-content: center;
+}
+#gameover-overlay.show { display: flex; }
+#gameover-box {
+  background: linear-gradient(145deg, #1a1a3a, #0e0e20);
+  border: 2px solid #5a5aaa;
+  border-radius: 18px;
+  padding: 36px 44px;
+  min-width: 340px; max-width: 90vw;
+  text-align: center;
+  animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+}
+#gameover-box h2 { font-size: 26px; color: #ff9090; margin-bottom: 8px; }
+#gameover-box .go-msg { font-size: 15px; color: #aaa; margin-bottom: 22px; }
+#gameover-box .chips-row {
+  display: flex; align-items: center; gap: 12px;
+  justify-content: center; margin-bottom: 20px;
+}
+#gameover-box .chips-row label { font-size: 14px; color: #aaa; }
+#gameover-box .chips-row select {
+  background: #1a2a4a; border: 1px solid #4a6aaa;
+  color: #eee; padding: 8px 12px; border-radius: 7px; font-size: 14px;
+}
+#gameover-box .go-btns { display: flex; gap: 12px; justify-content: center; }
+#go-continue-btn {
+  background: #2a6a2a; color: #fff; border: none;
+  padding: 11px 28px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;
+}
+#go-continue-btn:hover { background: #378037; }
+#go-dissolve-btn {
+  background: #6a2a2a; color: #fff; border: none;
+  padding: 11px 28px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;
+}
+#go-dissolve-btn:hover { background: #8a3a3a; }
+
 @media(max-width:580px){
   .card { width: 40px; height: 60px; }
   .card-rank { font-size: 13px; }
   .card-suit { font-size: 14px; }
   #table-center { padding: 16px 12px; border-radius: 40px; }
+  #showdown-box { padding: 22px 18px; }
+  #showdown-box .winner-name { font-size: 26px; }
 }
 </style>
 </head>
@@ -313,6 +427,28 @@ body {
       </div>
     </div>
 
+    <div class="field-row">
+      <label>初始筹码</label>
+      <select id="start-chips-select">
+        <option value="500">500 筹码</option>
+        <option value="1000" selected>1000 筹码</option>
+        <option value="2000">2000 筹码</option>
+        <option value="5000">5000 筹码</option>
+        <option value="10000">10000 筹码</option>
+      </select>
+    </div>
+
+    <div class="field-row">
+      <label>行动倒计时</label>
+      <select id="action-timeout-select">
+        <option value="0">无限制</option>
+        <option value="15">15 秒</option>
+        <option value="30" selected>30 秒</option>
+        <option value="45">45 秒</option>
+        <option value="60">60 秒</option>
+      </select>
+    </div>
+
     <button class="lobby-btn green" onclick="createRoom()">🏠 创建新房间</button>
 
     <div class="lobby-divider">─── 或加入已有房间 ───</div>
@@ -331,6 +467,7 @@ body {
     <div style="font-size:13px;color:#aaa">把下方房间码发给朋友，等大家进来后开始</div>
     <div id="room-code-display">------</div>
     <button id="copy-btn" onclick="copyCode()">📋 复制房间码</button>
+    <div id="waiting-settings">-</div>
     <div id="waiting-players" style="font-size:13px;color:#9fc">等待玩家中...</div>
     <button id="start-game-btn" onclick="startGame()">🎮 开始游戏</button>
   </div>
@@ -338,6 +475,11 @@ body {
 
 <!-- ══════ 游戏界面 ══════ -->
 <div id="game-screen">
+  <!-- 倒计时进度条 -->
+  <div id="timer-bar-wrap">
+    <div id="timer-bar"></div>
+  </div>
+
   <div id="table-wrap">
     <!-- 对手区（AI + 其他玩家） -->
     <div id="opponents-row"></div>
@@ -361,6 +503,7 @@ body {
         <span class="p-badge" id="my-badge"></span>
 
         <div id="action-area">
+          <div id="timer-display"></div>
           <button class="btn btn-fold"  id="btn-fold"  onclick="sendAction('fold')"  style="display:none">弃牌</button>
           <button class="btn btn-check" id="btn-check" onclick="sendAction('check')" style="display:none">过牌</button>
           <button class="btn btn-call"  id="btn-call"  onclick="sendAction('call')"  style="display:none">跟注</button>
@@ -379,30 +522,64 @@ body {
   </div>
 </div>
 
+<!-- ══════ 结算弹窗 ══════ -->
+<div id="showdown-overlay">
+  <div id="showdown-box">
+    <div class="winner-title">🏆 本局胜者</div>
+    <div class="winner-name" id="sd-winner-name"></div>
+    <div class="winner-hand" id="sd-winner-hand"></div>
+    <div class="showdown-cards" id="sd-winner-cards"></div>
+    <div class="other-hands" id="sd-other-hands"></div>
+    <button class="close-btn" onclick="closeShowdownOverlay()">继续 →</button>
+  </div>
+</div>
+
+<!-- ══════ 游戏结束弹窗 ══════ -->
+<div id="gameover-overlay">
+  <div id="gameover-box">
+    <h2 id="go-title">游戏结束</h2>
+    <div class="go-msg" id="go-msg">有玩家筹码归零</div>
+    <div class="chips-row" id="go-chips-row">
+      <label>重新设置筹码：</label>
+      <select id="go-chips-select">
+        <option value="500">500</option>
+        <option value="1000" selected>1000</option>
+        <option value="2000">2000</option>
+        <option value="5000">5000</option>
+        <option value="10000">10000</option>
+      </select>
+    </div>
+    <div class="go-btns">
+      <button id="go-continue-btn" onclick="continueGame()">🔄 继续游戏</button>
+      <button id="go-dissolve-btn" onclick="dissolveRoom()">🚪 解散房间</button>
+    </div>
+  </div>
+</div>
+
 <!-- Socket.io 客户端（CDN） -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
 // ════════════════════════════════════════════════════
 //  连接服务端
 // ════════════════════════════════════════════════════
-// 自动使用当前域名（部署后无需修改）
 const SERVER_URL = window.location.origin;
 const socket = io(SERVER_URL, { transports: ['websocket','polling'] });
 
-let myId      = null;   // 我的socketId
-let myName    = '玩家';
-let roomId    = null;
-let isHost    = false;
-let myCards   = [];     // 我的底牌
-let gameState = null;   // 最新游戏状态
-let myTurnInfo = null;  // 我的操作信息
-let aiCount   = 1;
+let myId         = null;
+let myName       = '玩家';
+let roomId       = null;
+let isHost       = false;
+let myCards      = [];
+let gameState    = null;
+let myTurnInfo   = null;
+let aiCount      = 1;
+let actionTimeout = 0;   // 秒，0=无限
+let turnTimerInt = null;  // 客户端倒计时interval
+let turnTimerLeft = 0;    // 剩余秒数
+let pendingGameOver = null; // 待显示的游戏结束数据
 
 // ── 连接状态 ──
-socket.on('connect',    () => {
-  myId = socket.id;
-  setConnStatus(true);
-});
+socket.on('connect',    () => { myId = socket.id; setConnStatus(true); });
 socket.on('disconnect', () => setConnStatus(false));
 
 function setConnStatus(ok) {
@@ -421,7 +598,10 @@ function changeAI(d) {
 
 function createRoom() {
   myName = document.getElementById('my-name').value.trim() || '玩家';
-  socket.emit('create_room', { name: myName, aiCount });
+  const startChips = parseInt(document.getElementById('start-chips-select').value);
+  const timeout    = parseInt(document.getElementById('action-timeout-select').value);
+  actionTimeout = timeout;
+  socket.emit('create_room', { name: myName, aiCount, startChips, actionTimeout: timeout });
 }
 
 function joinRoom() {
@@ -452,22 +632,27 @@ function copyCode() {
 // ════════════════════════════════════════════════════
 //  Socket 事件
 // ════════════════════════════════════════════════════
-socket.on('room_created', ({ roomId: rid, players }) => {
+socket.on('room_created', ({ roomId: rid, players, startChips, actionTimeout: at }) => {
   roomId = rid;
   isHost = true;
+  actionTimeout = at || 0;
   document.getElementById('room-code-display').textContent = rid;
   document.getElementById('waiting-room').style.display = 'flex';
+  document.getElementById('waiting-settings').textContent =
+    `筹码: ${startChips} | 倒计时: ${at ? at+'秒' : '无限制'}`;
   updateWaitingPlayers(players);
   document.getElementById('room-info').textContent = `房间: ${rid}`;
 });
 
-socket.on('join_success', ({ roomId: rid, players, isHost: h }) => {
+socket.on('join_success', ({ roomId: rid, players, isHost: h, startChips, actionTimeout: at }) => {
   roomId = rid;
   isHost = h;
+  actionTimeout = at || 0;
   document.getElementById('room-info').textContent = `房间: ${rid}`;
-  // 加入者直接显示等待室
   document.getElementById('room-code-display').textContent = rid;
   document.getElementById('waiting-room').style.display = 'flex';
+  document.getElementById('waiting-settings').textContent =
+    `筹码: ${startChips} | 倒计时: ${at ? at+'秒' : '无限制'}`;
   updateWaitingPlayers(players);
   if (!isHost) {
     document.getElementById('start-game-btn').style.display = 'none';
@@ -492,19 +677,24 @@ function updateWaitingPlayers(players) {
 // 游戏开始 / 状态更新
 socket.on('hand_started', (data) => {
   switchToGame();
+  actionTimeout = data.actionTimeout || 0;
   handleStateUpdate(data);
   setMsg(`🃏 第${data.roundNum}手开始！`, '#9fc');
 });
 
 socket.on('state_update', (data) => {
+  actionTimeout = data.actionTimeout || actionTimeout;
   handleStateUpdate(data);
 });
 
 socket.on('your_turn', (info) => {
   myTurnInfo = info;
+  actionTimeout = info.actionTimeout || actionTimeout;
   renderActionButtons(info);
   setMsg('轮到你行动 ⬇️', '#ffd700');
   document.getElementById('my-panel').classList.add('active');
+  // 启动倒计时
+  startClientTimer(actionTimeout);
 });
 
 socket.on('game_msg', ({ text }) => {
@@ -512,14 +702,52 @@ socket.on('game_msg', ({ text }) => {
 });
 
 socket.on('hand_over', (data) => {
+  stopClientTimer();
+  actionTimeout = data.actionTimeout || actionTimeout;
   handleStateUpdate(data);
-  renderShowdown(data);
-  document.getElementById('btn-next').style.display = 'inline-block';
-  hideActionButtons();
+
+  if (data.gameOver) {
+    // 游戏结束：先显示结算弹窗，再显示游戏结束弹窗
+    pendingGameOver = data;
+    if (data.showdownData) {
+      showShowdownOverlay(data);
+    } else {
+      hideActionButtons();
+      showGameOverOverlay(data);
+    }
+  } else {
+    // 普通结算
+    if (data.showdownData) {
+      showShowdownOverlay(data);
+    } else {
+      renderShowdownMsg(data);
+      document.getElementById('btn-next').style.display = 'inline-block';
+      hideActionButtons();
+    }
+  }
 });
 
 socket.on('error', ({ msg }) => {
   showError(msg);
+});
+
+socket.on('game_continued', ({ startChips }) => {
+  document.getElementById('gameover-overlay').classList.remove('show');
+  pendingGameOver = null;
+  setMsg(`🔄 继续游戏，初始筹码 ${startChips}`, '#9fc');
+});
+
+socket.on('room_dissolved', () => {
+  document.getElementById('gameover-overlay').classList.remove('show');
+  document.getElementById('showdown-overlay').classList.remove('show');
+  // 返回大厅
+  document.getElementById('game-screen').style.display  = 'none';
+  document.getElementById('lobby-screen').style.display = 'flex';
+  document.getElementById('waiting-room').style.display = 'none';
+  document.getElementById('phase-badge').textContent    = '大厅';
+  document.getElementById('room-info').textContent      = '-';
+  roomId = null; isHost = false; myCards = []; gameState = null;
+  setMsg('房间已解散', '#aaa');
 });
 
 // ════════════════════════════════════════════════════
@@ -529,20 +757,15 @@ function handleStateUpdate(data) {
   gameState = data;
   myCards   = data.myCards || myCards;
 
-  // 更新阶段
   const phaseNames = {
     preflop:'底牌轮', flop:'翻牌', turn:'转牌', river:'河牌', showdown:'摊牌'
   };
   document.getElementById('phase-badge').textContent = phaseNames[data.phase] || data.phase;
   document.getElementById('pot-area').innerHTML = `<span>底池</span> ${data.pot}`;
 
-  // 更新公共牌（只追加新牌）
   renderCommunityCards(data.community);
-
-  // 更新玩家状态
   renderPlayers(data);
 
-  // 更新我的信息
   const me = data.players.find(p => p.id === data.myId);
   if (me) {
     document.getElementById('my-chips').textContent = me.chips;
@@ -553,23 +776,15 @@ function handleStateUpdate(data) {
     }
   }
 
-  // 更新我的底牌
   renderMyCards();
-
-  // 更新牌型提示
   renderHandHint(data.community);
-
-  // 更新徽标
   renderBadges(data);
 
-  // 如果不是我的回合，隐藏操作按钮（除非等到 your_turn 事件）
   if (data.players[data.actIdx]?.id !== data.myId) {
     if (data.phase !== 'showdown') {
       hideActionButtons();
       const cur = data.players[data.actIdx];
-      if (cur) {
-        setThinking(true, cur.name);
-      }
+      if (cur) setThinking(true, cur.name);
     }
   } else {
     setThinking(false);
@@ -583,7 +798,6 @@ let _commRendered = 0;
 
 function renderCommunityCards(community) {
   const container = document.getElementById('community-cards');
-  // 新一手开始：清空
   if (community.length === 0 && _commRendered > 0) {
     container.innerHTML = '';
     for (let i = 0; i < 5; i++) container.insertAdjacentHTML('beforeend', phCard());
@@ -596,7 +810,6 @@ function renderCommunityCards(community) {
     }
     return;
   }
-  // 追加新翻的牌
   for (let i = _commRendered; i < community.length; i++) {
     const ph = container.children[i];
     if (ph) ph.outerHTML = cardHtml(community[i], false, false, true);
@@ -608,7 +821,6 @@ function renderPlayers(data) {
   const row = document.getElementById('opponents-row');
   const opponents = data.players.filter(p => p.id !== data.myId);
 
-  // 初始化（新一手时重建）
   if (row.children.length !== opponents.length) {
     row.innerHTML = '';
     opponents.forEach(p => {
@@ -632,34 +844,98 @@ function renderPlayers(data) {
     const panel = document.getElementById('opp-panel-' + p.id);
     if (!panel) return;
 
-    // 状态
     let cls = 'p-panel';
     if (p.folded) cls += ' folded';
+    else if (p.eliminated) cls += ' eliminated';
     else if (data.players[data.actIdx]?.id === p.id && data.phase !== 'showdown') cls += ' active';
     panel.className = cls;
 
-    // 筹码/下注
     const chipsEl = document.getElementById('opp-chips-' + p.id);
     if (chipsEl) chipsEl.textContent = p.chips;
     const betEl = document.getElementById('opp-bet-' + p.id);
     if (betEl) betEl.textContent = p.bet > 0 ? `已下注: ${p.bet}` : '';
 
-    // 手牌（背面）
+    // ★ 手牌：非showdown阶段永远显示背面，折叠则清空
     const cardsEl = document.getElementById('opp-cards-' + p.id);
+    const revealEl = document.getElementById('opp-reveal-' + p.id);
     if (cardsEl && data.phase !== 'showdown') {
+      // 重置reveal区域
+      if (revealEl) revealEl.style.display = 'none';
+      cardsEl.style.display = '';
       if (p.cardCount > 0 && !p.folded) {
         cardsEl.innerHTML = cardHtml(null,true) + cardHtml(null,true);
-      } else if (p.folded) {
+      } else {
         cardsEl.innerHTML = '';
       }
     }
   });
 }
 
-function renderShowdown(data) {
+// ★ 结算弹窗（放大显示）
+function showShowdownOverlay(data) {
+  if (!data.showdownData || data.showdownData.length === 0) {
+    renderShowdownMsg(data);
+    document.getElementById('btn-next').style.display = 'inline-block';
+    hideActionButtons();
+    return;
+  }
+
+  // 找胜者
+  const winners = data.showdownData.filter(sd => sd.isWinner);
+  const losers  = data.showdownData.filter(sd => !sd.isWinner);
+
+  if (winners.length === 0) {
+    renderShowdownMsg(data);
+    document.getElementById('btn-next').style.display = 'inline-block';
+    hideActionButtons();
+    return;
+  }
+
+  const w = winners[0];
+  const winnerName = winners.length > 1
+    ? winners.map(ww => ww.name).join(' & ')
+    : w.name;
+  const winnerHand = winners.length > 1
+    ? winners.map(ww => ww.handName).join(' / ')
+    : w.handName;
+
+  document.getElementById('sd-winner-name').textContent = winnerName;
+  document.getElementById('sd-winner-hand').textContent = `🎴 ${winnerHand}`;
+
+  // 显示胜者牌
+  const cardsEl = document.getElementById('sd-winner-cards');
+  cardsEl.innerHTML = '';
+  if (winners.length === 1 && w.holeCards) {
+    w.holeCards.forEach(c => {
+      cardsEl.insertAdjacentHTML('beforeend', cardHtml(c, false, false));
+    });
+  }
+
+  // 显示其他人手牌和牌型
+  const othersEl = document.getElementById('sd-other-hands');
+  othersEl.innerHTML = '';
+  losers.forEach(sd => {
+    const row = document.createElement('div');
+    row.className = 'other-hand-row';
+    const cardsHtml = sd.holeCards
+      ? sd.holeCards.map(c => cardHtml(c, false, true)).join('')
+      : '';
+    row.innerHTML = `<span style="color:#eee">${sd.name}</span>: ${cardsHtml} <span style="color:#f0c080">${sd.handName}</span>`;
+    othersEl.appendChild(row);
+  });
+
+  // 同时在牌桌上展示对手手牌
+  renderShowdownOnTable(data);
+
+  document.getElementById('showdown-overlay').classList.add('show');
+  hideActionButtons();
+}
+
+// 在牌桌上揭示手牌（结算时）
+function renderShowdownOnTable(data) {
   if (!data.showdownData) return;
   data.showdownData.forEach(sd => {
-    if (sd.id === data.myId) return; // 自己的牌单独处理
+    if (sd.id === data.myId) return;
     const reveal = document.getElementById('opp-reveal-' + sd.id);
     const rcards = document.getElementById('opp-rcards-' + sd.id);
     const rname  = document.getElementById('opp-rname-' + sd.id);
@@ -672,10 +948,51 @@ function renderShowdown(data) {
       rname.textContent = sd.handName + (sd.isWinner ? ' 🏆' : '');
     }
   });
+}
 
-  // 结算消息
-  const me = data.players.find(p => p.id === data.myId);
-  const amWinner = data.winnerIds.includes(data.myId);
+function closeShowdownOverlay() {
+  document.getElementById('showdown-overlay').classList.remove('show');
+  if (pendingGameOver) {
+    // 显示游戏结束弹窗
+    showGameOverOverlay(pendingGameOver);
+  } else {
+    document.getElementById('btn-next').style.display = 'inline-block';
+    renderShowdownMsg(gameState);
+  }
+}
+
+function showGameOverOverlay(data) {
+  // 设置弹窗内容
+  const eliminatedPls = data.eliminatedPlayers || [];
+  const names = eliminatedPls.map(p => p.name).join('、');
+  document.getElementById('go-title').textContent = '游戏结束';
+  document.getElementById('go-msg').textContent =
+    names ? `${names} 筹码归零！` : '有玩家筹码归零';
+
+  // 只有房主显示继续按钮
+  document.getElementById('go-continue-btn').style.display = isHost ? 'inline-block' : 'none';
+  document.getElementById('go-dissolve-btn').style.display = isHost ? 'inline-block' : 'none';
+  if (!isHost) {
+    document.getElementById('go-msg').textContent += '\n等待房主决定...';
+  }
+
+  document.getElementById('gameover-overlay').classList.add('show');
+}
+
+function continueGame() {
+  const chips = parseInt(document.getElementById('go-chips-select').value);
+  socket.emit('continue_game', { startChips: chips });
+}
+
+function dissolveRoom() {
+  socket.emit('dissolve_room');
+}
+
+// 普通结算消息（无弹窗）
+function renderShowdownMsg(data) {
+  if (!data) return;
+  const me = data.players ? data.players.find(p => p.id === data.myId) : null;
+  const amWinner = data.winnerIds && data.winnerIds.includes(data.myId);
   if (amWinner && data.winnerIds.length === 1) {
     setMsg('🎉 你赢了！', '#ffd700');
   } else if (amWinner) {
@@ -684,8 +1001,12 @@ function renderShowdown(data) {
     const winNames = data.players.filter(p => data.winnerIds.includes(p.id)).map(p=>p.name).join('/');
     setMsg(`😞 你弃牌，${winNames} 赢`, '#ff9090');
   } else {
-    const winNames = data.players.filter(p => data.winnerIds.includes(p.id)).map(p=>p.name).join('/');
+    const winNames = data.players ? data.players.filter(p => data.winnerIds && data.winnerIds.includes(p.id)).map(p=>p.name).join('/') : '';
     setMsg(`😞 ${winNames} 赢得底池`, '#ff9090');
+  }
+  // 在牌桌上展示手牌
+  if (data.showdownData) {
+    renderShowdownOnTable(data);
   }
 }
 
@@ -717,9 +1038,9 @@ function renderBadges(data) {
   const bb = (dealer+2) % n;
   data.players.forEach((p, i) => {
     let text='', cls='p-badge';
-    if (i===dealer)     { text='🔘 庄'; cls='p-badge dealer'; }
-    else if (i===sb)    { text='SB';    cls='p-badge sb'; }
-    else if (i===bb)    { text='BB';    cls='p-badge bb'; }
+    if (i===dealer)  { text='🔘 庄'; cls='p-badge dealer'; }
+    else if (i===sb) { text='SB';    cls='p-badge sb'; }
+    else if (i===bb) { text='BB';    cls='p-badge bb'; }
     if (p.id === data.myId) {
       const el = document.getElementById('my-badge');
       if (el) { el.textContent=text; el.className=cls; }
@@ -734,8 +1055,8 @@ function renderActionButtons(info) {
   ['fold','check','call','raise','allin'].forEach(b => {
     document.getElementById('btn-'+b).style.display = 'none';
   });
-  document.getElementById('raise-row').style.display  = 'none';
-  document.getElementById('btn-next').style.display   = 'none';
+  document.getElementById('raise-row').style.display = 'none';
+  document.getElementById('btn-next').style.display  = 'none';
   if (!info) return;
 
   document.getElementById('btn-fold').style.display  = 'inline-block';
@@ -765,6 +1086,61 @@ function hideActionButtons() {
     document.getElementById('btn-'+b).style.display = 'none';
   });
   document.getElementById('raise-row').style.display = 'none';
+  stopClientTimer();
+}
+
+// ════════════════════════════════════════════════════
+//  倒计时（客户端）
+// ════════════════════════════════════════════════════
+function startClientTimer(seconds) {
+  stopClientTimer();
+  if (!seconds || seconds <= 0) {
+    document.getElementById('timer-display').textContent = '';
+    document.getElementById('timer-bar-wrap').style.display = 'none';
+    return;
+  }
+  turnTimerLeft = seconds;
+  document.getElementById('timer-bar-wrap').style.display = 'block';
+  document.getElementById('timer-bar').style.width = '100%';
+  document.getElementById('timer-bar').style.transition = 'none';
+
+  updateTimerDisplay();
+
+  // 强制重绘后开始动画
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.getElementById('timer-bar').style.transition = `width ${seconds}s linear`;
+      document.getElementById('timer-bar').style.width = '0%';
+    });
+  });
+
+  turnTimerInt = setInterval(() => {
+    turnTimerLeft--;
+    updateTimerDisplay();
+    if (turnTimerLeft <= 0) {
+      stopClientTimer();
+    }
+  }, 1000);
+}
+
+function stopClientTimer() {
+  if (turnTimerInt) {
+    clearInterval(turnTimerInt);
+    turnTimerInt = null;
+  }
+  turnTimerLeft = 0;
+  document.getElementById('timer-display').textContent = '';
+  document.getElementById('timer-bar-wrap').style.display = 'none';
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timer-display');
+  if (turnTimerLeft > 0) {
+    el.textContent = `⏱ ${turnTimerLeft} 秒`;
+    el.style.color = turnTimerLeft <= 5 ? '#ff5050' : '#ffd700';
+  } else {
+    el.textContent = '';
+  }
 }
 
 // ════════════════════════════════════════════════════
@@ -777,6 +1153,7 @@ function sendAction(type) {
   socket.emit('player_action', { type, amount });
   hideActionButtons();
   myTurnInfo = null;
+  stopClientTimer();
 }
 
 // ════════════════════════════════════════════════════
@@ -800,7 +1177,6 @@ function phCard() {
   return `<div class="card ph"></div>`;
 }
 
-// 牌型判断（客户端也要算，用于显示牌型提示）
 function combos(arr, k) {
   if(k===0)return[[]]; if(!arr.length)return[];
   const[f,...r]=arr;
@@ -843,22 +1219,18 @@ function setMsg(text, color='#9fc') {
 function setThinking(show, name='') {
   document.getElementById('thinking-indicator').textContent = show ? `${name} 思考中...` : '';
 }
-
 function showError(msg) {
   const el = document.getElementById('error-toast');
   el.textContent = msg; el.style.display = 'block';
   setTimeout(() => el.style.display='none', 3000);
 }
-function showToast(msg, ms=2000) {
-  setMsg(msg);
-}
+function showToast(msg) { setMsg(msg); }
 
 function switchToGame() {
   document.getElementById('lobby-screen').style.display = 'none';
   document.getElementById('game-screen').style.display  = 'block';
   document.getElementById('my-name-display').textContent = myName;
   _commRendered = 0;
-  // 重置公共牌
   const cc = document.getElementById('community-cards');
   cc.innerHTML = '';
   for (let i=0;i<5;i++) cc.insertAdjacentHTML('beforeend', phCard());
