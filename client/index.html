@@ -947,6 +947,17 @@ socket.on('error', ({ msg }) => {
   showError(msg);
 });
 
+// ── 管理员踢出/关闭房间 ──
+socket.on('kicked', ({ reason }) => {
+  alert('⚠️ ' + (reason || '你已被管理员踢出'));
+  location.href = '/';
+});
+
+socket.on('room_closed', ({ reason }) => {
+  alert('🚫 ' + (reason || '房间已被管理员关闭'));
+  location.href = '/';
+});
+
 // ── 功能2：全员准备进度更新 ──
 socket.on('next_hand_ready', ({ readyCount, totalHumans, readyNames }) => {
   const btn = document.getElementById('rp-next-btn');

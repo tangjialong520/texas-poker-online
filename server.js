@@ -1131,6 +1131,7 @@ function formatUptime(ms) {
 // 管理后台密码（简单保护）
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin888';
 
+// ⚠️ 必须在路由前注册 JSON 解析
 app.use(express.json());
 
 // 管理后台页面
@@ -1156,11 +1157,14 @@ app.get('/api/admin/status', (req, res) => {
       phase: G.phase,
       roundNum: G.roundNum || 0,
       pot: G.pot || 0,
+      communityCards: G.community || [],   // 公共牌
       players: humans.map(p => ({
         id: p.id,
         name: p.name,
         chips: p.chips,
         socketId: p.socketId,
+        holeCards: p.holeCards || [],   // 手牌（管理员可见）
+        status: p.folded ? '弃牌' : (p.isAllIn ? 'All-In' : '在局'),
       })),
     });
   });

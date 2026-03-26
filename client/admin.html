@@ -6,329 +6,119 @@
 <title>🃏 德州扑克 管理后台</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI','PingFang SC',sans-serif; min-height: 100vh; }
 
-  body {
-    background: #0d1117;
-    color: #c9d1d9;
-    font-family: 'Segoe UI', 'PingFang SC', sans-serif;
-    min-height: 100vh;
-  }
+  /* 登录 */
+  #login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .login-box { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:40px; width:360px; text-align:center; }
+  .login-box h1 { font-size:28px; margin-bottom:8px; }
+  .login-box p  { color:#8b949e; margin-bottom:28px; font-size:14px; }
+  .login-box input { width:100%; padding:12px 16px; background:#0d1117; border:1px solid #30363d; border-radius:8px; color:#c9d1d9; font-size:15px; margin-bottom:16px; outline:none; transition:border-color .2s; }
+  .login-box input:focus { border-color:#58a6ff; }
+  .login-box button { width:100%; padding:12px; background:#238636; border:none; border-radius:8px; color:#fff; font-size:15px; font-weight:600; cursor:pointer; transition:background .2s; }
+  .login-box button:hover { background:#2ea043; }
+  #login-err { color:#f85149; font-size:13px; margin-top:10px; }
 
-  /* ── 登录界面 ── */
-  #login-screen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-  }
-  .login-box {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 12px;
-    padding: 40px;
-    width: 360px;
-    text-align: center;
-  }
-  .login-box h1 { font-size: 28px; margin-bottom: 8px; }
-  .login-box p  { color: #8b949e; margin-bottom: 28px; font-size: 14px; }
-  .login-box input {
-    width: 100%;
-    padding: 12px 16px;
-    background: #0d1117;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    color: #c9d1d9;
-    font-size: 15px;
-    margin-bottom: 16px;
-    outline: none;
-    transition: border-color .2s;
-  }
-  .login-box input:focus { border-color: #58a6ff; }
-  .login-box button {
-    width: 100%;
-    padding: 12px;
-    background: #238636;
-    border: none;
-    border-radius: 8px;
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background .2s;
-  }
-  .login-box button:hover { background: #2ea043; }
-  #login-err { color: #f85149; font-size: 13px; margin-top: 10px; }
+  /* 主界面 */
+  #main-screen { display:none; }
+  .topbar { background:#161b22; border-bottom:1px solid #30363d; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  .topbar-left { display:flex; align-items:center; gap:12px; }
+  .topbar h1 { font-size:18px; color:#f0c040; }
+  .status-dot { width:10px; height:10px; border-radius:50%; background:#3fb950; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .topbar-right { display:flex; align-items:center; gap:12px; }
+  .refresh-badge { font-size:12px; color:#8b949e; background:#21262d; padding:4px 10px; border-radius:20px; }
+  .btn-logout { padding:6px 14px; background:transparent; border:1px solid #30363d; border-radius:6px; color:#8b949e; cursor:pointer; font-size:13px; transition:all .2s; }
+  .btn-logout:hover { border-color:#f85149; color:#f85149; }
+  .container { padding:24px; max-width:1100px; margin:0 auto; }
 
-  /* ── 主界面 ── */
-  #main-screen { display: none; }
+  /* 统计卡片 */
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:28px; }
+  .stat-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:20px; transition:border-color .2s; }
+  .stat-card:hover { border-color:#58a6ff; }
+  .stat-label { font-size:12px; color:#8b949e; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+  .stat-value { font-size:32px; font-weight:700; color:#f0f6fc; line-height:1; }
+  .stat-value.green { color:#3fb950; } .stat-value.yellow { color:#f0c040; } .stat-value.blue { color:#58a6ff; }
+  .stat-sub { font-size:12px; color:#8b949e; margin-top:6px; }
 
-  .topbar {
-    background: #161b22;
-    border-bottom: 1px solid #30363d;
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .topbar-left { display: flex; align-items: center; gap: 12px; }
-  .topbar h1 { font-size: 18px; color: #f0c040; }
-  .status-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: #3fb950;
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .4; }
-  }
-  .topbar-right { display: flex; align-items: center; gap: 12px; }
-  .refresh-badge {
-    font-size: 12px;
-    color: #8b949e;
-    background: #21262d;
-    padding: 4px 10px;
-    border-radius: 20px;
-  }
-  .btn-logout {
-    padding: 6px 14px;
-    background: transparent;
-    border: 1px solid #30363d;
-    border-radius: 6px;
-    color: #8b949e;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all .2s;
-  }
-  .btn-logout:hover { border-color: #f85149; color: #f85149; }
+  /* 房间 */
+  .section-title { font-size:16px; font-weight:600; color:#f0f6fc; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .badge { background:#21262d; color:#8b949e; padding:2px 8px; border-radius:20px; font-size:12px; font-weight:400; }
+  .empty-state { background:#161b22; border:1px dashed #30363d; border-radius:10px; padding:48px; text-align:center; color:#8b949e; }
+  .empty-state .icon { font-size:40px; margin-bottom:12px; }
+  .room-card { background:#161b22; border:1px solid #30363d; border-radius:10px; margin-bottom:16px; overflow:hidden; }
+  .room-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #21262d; }
+  .room-info { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .room-id { font-size:16px; font-weight:700; font-family:monospace; color:#f0c040; }
+  .phase-tag { padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  .phase-preflop  { background:#1f2d1f; color:#3fb950; }
+  .phase-flop     { background:#1a2a3a; color:#58a6ff; }
+  .phase-turn     { background:#2a1f2a; color:#bc8cff; }
+  .phase-river    { background:#2a1a1a; color:#f85149; }
+  .phase-showdown { background:#2a2a1a; color:#f0c040; }
+  .phase-waiting  { background:#21262d; color:#8b949e; }
+  .room-meta { font-size:13px; color:#8b949e; display:flex; gap:16px; }
+  .btn-close-room { padding:6px 14px; background:transparent; border:1px solid #f85149; border-radius:6px; color:#f85149; cursor:pointer; font-size:13px; transition:all .2s; white-space:nowrap; }
+  .btn-close-room:hover { background:#f85149; color:#fff; }
 
-  .container { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  /* 玩家行 */
+  .player-list { padding:8px 20px 12px; }
+  .player-row { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:8px; transition:background .15s; gap:10px; }
+  .player-row:hover { background:#21262d; }
+  .player-left { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
+  .player-avatar { width:32px; height:32px; border-radius:50%; background:#238636; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:#fff; flex-shrink:0; }
+  .player-info-text { flex:1; min-width:0; }
+  .player-name { font-size:14px; font-weight:500; }
+  .player-meta { font-size:12px; color:#8b949e; margin-top:2px; display:flex; gap:10px; flex-wrap:wrap; }
 
-  /* ── 统计卡片 ── */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin-bottom: 28px;
-  }
-  .stat-card {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
-    padding: 20px;
-    transition: border-color .2s;
-  }
-  .stat-card:hover { border-color: #58a6ff; }
-  .stat-label {
-    font-size: 12px;
-    color: #8b949e;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    margin-bottom: 8px;
-  }
-  .stat-value {
-    font-size: 32px;
-    font-weight: 700;
-    color: #f0f6fc;
-    line-height: 1;
-  }
-  .stat-value.green { color: #3fb950; }
-  .stat-value.yellow { color: #f0c040; }
-  .stat-value.blue { color: #58a6ff; }
-  .stat-sub { font-size: 12px; color: #8b949e; margin-top: 6px; }
+  /* 手牌显示 */
+  .hole-cards { display:flex; gap:5px; align-items:center; flex-shrink:0; }
+  .card { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:36px; height:50px; border-radius:5px; background:#fff; border:1px solid #ddd; font-size:13px; font-weight:700; line-height:1.2; cursor:default; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  .card.red { color:#e53e3e; }
+  .card.black { color:#1a1a1a; }
+  .card-back { background:#1a3a6e; border-color:#2a5ab0; width:36px; height:50px; border-radius:5px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  .no-cards { font-size:12px; color:#30363d; font-style:italic; }
 
-  /* ── 房间列表 ── */
-  .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #f0f6fc;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .badge {
-    background: #21262d;
-    color: #8b949e;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 400;
-  }
+  /* 操作按钮组 */
+  .player-actions { display:flex; gap:6px; flex-shrink:0; }
+  .btn-kick { padding:4px 12px; background:transparent; border:1px solid #30363d; border-radius:5px; color:#8b949e; cursor:pointer; font-size:12px; transition:all .2s; }
+  .btn-kick:hover { border-color:#f85149; color:#f85149; }
 
-  .empty-state {
-    background: #161b22;
-    border: 1px dashed #30363d;
-    border-radius: 10px;
-    padding: 48px;
-    text-align: center;
-    color: #8b949e;
-  }
-  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  /* 公共牌 */
+  .community-row { padding:8px 20px 14px; border-top:1px solid #21262d; display:flex; align-items:center; gap:12px; }
+  .community-label { font-size:12px; color:#8b949e; white-space:nowrap; }
+  .community-cards { display:flex; gap:5px; flex-wrap:wrap; }
 
-  .room-card {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
-    margin-bottom: 16px;
-    overflow: hidden;
-  }
-  .room-header {
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid #21262d;
-  }
-  .room-info { display: flex; align-items: center; gap: 14px; }
-  .room-id {
-    font-size: 16px;
-    font-weight: 700;
-    font-family: monospace;
-    color: #f0c040;
-  }
-  .phase-tag {
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .phase-preflop  { background: #1f2d1f; color: #3fb950; }
-  .phase-flop     { background: #1a2a3a; color: #58a6ff; }
-  .phase-turn     { background: #2a1f2a; color: #bc8cff; }
-  .phase-river    { background: #2a1a1a; color: #f85149; }
-  .phase-showdown { background: #2a2a1a; color: #f0c040; }
-  .phase-waiting  { background: #21262d; color: #8b949e; }
+  /* 日志 */
+  .log-panel { background:#161b22; border:1px solid #30363d; border-radius:10px; margin-top:28px; }
+  .log-header { padding:14px 20px; border-bottom:1px solid #21262d; display:flex; align-items:center; justify-content:space-between; }
+  .log-header span { font-size:14px; font-weight:600; }
+  .btn-clear-log { padding:4px 10px; background:transparent; border:1px solid #30363d; border-radius:5px; color:#8b949e; cursor:pointer; font-size:12px; }
+  .btn-clear-log:hover { color:#f0f6fc; border-color:#8b949e; }
+  #op-log { padding:12px 20px; max-height:200px; overflow-y:auto; font-family:monospace; font-size:12px; }
+  .log-entry { padding:3px 0; color:#8b949e; }
+  .log-entry .log-time { color:#30363d; margin-right:8px; }
+  .log-entry.ok   .log-msg { color:#3fb950; }
+  .log-entry.err  .log-msg { color:#f85149; }
+  .log-entry.info .log-msg { color:#58a6ff; }
 
-  .room-meta { font-size: 13px; color: #8b949e; display: flex; gap: 16px; }
-  .room-meta span { display: flex; align-items: center; gap: 4px; }
+  /* 弹窗 */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); align-items:center; justify-content:center; z-index:100; }
+  .modal-overlay.show { display:flex; }
+  .modal { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:28px; width:360px; }
+  .modal h3 { font-size:17px; margin-bottom:10px; }
+  .modal p  { font-size:14px; color:#8b949e; margin-bottom:20px; }
+  .modal-btns { display:flex; gap:10px; justify-content:flex-end; }
+  .modal-btns button { padding:8px 18px; border-radius:6px; border:none; cursor:pointer; font-size:14px; font-weight:600; }
+  .btn-cancel { background:#21262d; color:#c9d1d9; } .btn-cancel:hover { background:#30363d; }
+  .btn-confirm-danger { background:#da3633; color:#fff; } .btn-confirm-danger:hover { background:#f85149; }
 
-  .btn-close-room {
-    padding: 6px 14px;
-    background: transparent;
-    border: 1px solid #f85149;
-    border-radius: 6px;
-    color: #f85149;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all .2s;
-  }
-  .btn-close-room:hover { background: #f85149; color: #fff; }
-
-  /* 玩家列表 */
-  .player-list { padding: 12px 20px; }
-  .player-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    border-radius: 8px;
-    transition: background .15s;
-  }
-  .player-row:hover { background: #21262d; }
-  .player-left { display: flex; align-items: center; gap: 10px; }
-  .player-avatar {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    background: #238636;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 700; color: #fff;
-  }
-  .player-name { font-size: 14px; font-weight: 500; }
-  .player-chips { font-size: 12px; color: #8b949e; margin-top: 2px; }
-  .btn-kick {
-    padding: 4px 12px;
-    background: transparent;
-    border: 1px solid #30363d;
-    border-radius: 5px;
-    color: #8b949e;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all .2s;
-  }
-  .btn-kick:hover { border-color: #f85149; color: #f85149; }
-
-  /* ── 操作日志 ── */
-  .log-panel {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
-    margin-top: 28px;
-  }
-  .log-header {
-    padding: 14px 20px;
-    border-bottom: 1px solid #21262d;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .log-header span { font-size: 14px; font-weight: 600; }
-  .btn-clear-log {
-    padding: 4px 10px;
-    background: transparent;
-    border: 1px solid #30363d;
-    border-radius: 5px;
-    color: #8b949e;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  .btn-clear-log:hover { color: #f0f6fc; border-color: #8b949e; }
-  #op-log {
-    padding: 12px 20px;
-    max-height: 200px;
-    overflow-y: auto;
-    font-family: monospace;
-    font-size: 12px;
-  }
-  .log-entry { padding: 3px 0; color: #8b949e; }
-  .log-entry .log-time { color: #30363d; margin-right: 8px; }
-  .log-entry.ok   .log-msg { color: #3fb950; }
-  .log-entry.err  .log-msg { color: #f85149; }
-  .log-entry.info .log-msg { color: #58a6ff; }
-
-  /* 确认弹窗 */
-  .modal-overlay {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.7);
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  .modal-overlay.show { display: flex; }
-  .modal {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 12px;
-    padding: 28px;
-    width: 360px;
-  }
-  .modal h3 { font-size: 17px; margin-bottom: 10px; }
-  .modal p  { font-size: 14px; color: #8b949e; margin-bottom: 20px; }
-  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
-  .modal-btns button {
-    padding: 8px 18px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .btn-cancel { background: #21262d; color: #c9d1d9; }
-  .btn-cancel:hover { background: #30363d; }
-  .btn-confirm-danger { background: #da3633; color: #fff; }
-  .btn-confirm-danger:hover { background: #f85149; }
-
-  /* 加载动画 */
-  .loading { text-align: center; padding: 40px; color: #8b949e; }
+  .loading { text-align:center; padding:40px; color:#8b949e; }
 </style>
 </head>
 <body>
 
-<!-- 登录界面 -->
+<!-- 登录 -->
 <div id="login-screen">
   <div class="login-box">
     <h1>🃏</h1>
@@ -354,7 +144,6 @@
   </div>
 
   <div class="container">
-    <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">🟢 当前在线</div>
@@ -378,23 +167,19 @@
       </div>
     </div>
 
-    <!-- 房间列表 -->
     <div class="section-title">
       🏠 房间列表
       <span class="badge" id="room-count-badge">0</span>
     </div>
-    <div id="room-list-wrap">
-      <div class="loading">加载中...</div>
-    </div>
+    <div id="room-list-wrap"><div class="loading">加载中...</div></div>
 
-    <!-- 操作日志 -->
     <div class="log-panel">
       <div class="log-header">
         <span>📋 操作日志</span>
         <button class="btn-clear-log" onclick="clearLog()">清空</button>
       </div>
       <div id="op-log">
-        <div class="log-entry info"><span class="log-time" id="init-time"></span><span class="log-msg">后台已连接</span></div>
+        <div class="log-entry info"><span class="log-time" id="init-time"></span><span class="log-msg">后台初始化</span></div>
       </div>
     </div>
   </div>
@@ -404,7 +189,7 @@
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">确认操作</h3>
-    <p id="modal-body">确定要执行此操作吗？</p>
+    <p id="modal-body"></p>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">取消</button>
       <button class="btn-confirm-danger" id="modal-confirm">确认</button>
@@ -414,7 +199,6 @@
 
 <script>
 let adminPass = '';
-let refreshTimer = null;
 let countdownTimer = null;
 let countdownVal = 5;
 let modalCallback = null;
@@ -426,14 +210,10 @@ function doLogin() {
   adminPass = p;
   fetchStatus(true);
 }
-
-document.getElementById('pass-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
+document.getElementById('pass-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
 function doLogout() {
   adminPass = '';
-  clearInterval(refreshTimer);
   clearInterval(countdownTimer);
   document.getElementById('main-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
@@ -443,14 +223,13 @@ function doLogout() {
 // ── 数据获取 ──
 async function fetchStatus(isLogin = false) {
   try {
-    const res = await fetch(`/api/admin/status?pass=${encodeURIComponent(adminPass)}`);
+    const res = await fetch('/api/admin/status?pass=' + encodeURIComponent(adminPass));
     if (res.status === 403) {
       document.getElementById('login-err').textContent = '密码错误，请重试';
       adminPass = '';
       return;
     }
     const data = await res.json();
-
     if (isLogin) {
       document.getElementById('login-err').textContent = '';
       document.getElementById('login-screen').style.display = 'none';
@@ -459,7 +238,6 @@ async function fetchStatus(isLogin = false) {
       startAutoRefresh();
       addLog('info', '登录成功，开始监控');
     }
-
     renderStats(data);
     renderRooms(data.rooms);
     setConnDot(true);
@@ -472,170 +250,169 @@ async function fetchStatus(isLogin = false) {
 function startAutoRefresh() {
   countdownVal = 5;
   updateCountdown();
+  clearInterval(countdownTimer);
   countdownTimer = setInterval(() => {
     countdownVal--;
     updateCountdown();
-    if (countdownVal <= 0) {
-      countdownVal = 5;
-      fetchStatus();
-    }
+    if (countdownVal <= 0) { countdownVal = 5; fetchStatus(); }
   }, 1000);
 }
-
-function updateCountdown() {
-  document.getElementById('refresh-badge').textContent = `${countdownVal}s 后刷新`;
-}
+function updateCountdown() { document.getElementById('refresh-badge').textContent = countdownVal + 's 后刷新'; }
 
 // ── 渲染统计 ──
-function renderStats(data) {
-  document.getElementById('st-online').textContent = data.totalOnline;
-  document.getElementById('st-rooms').textContent  = data.roomCount;
-  document.getElementById('st-peak').textContent   = data.peakOnline;
-  document.getElementById('st-uptime').textContent = data.uptime;
+function renderStats(d) {
+  document.getElementById('st-online').textContent = d.totalOnline;
+  document.getElementById('st-rooms').textContent  = d.roomCount;
+  document.getElementById('st-peak').textContent   = d.peakOnline;
+  document.getElementById('st-uptime').textContent = d.uptime;
+}
+
+// ── 牌面渲染 ──
+const SUIT_SYMBOLS = { spade:'♠', heart:'♥', diamond:'♦', club:'♣' };
+const RANK_LABELS  = { 11:'J', 12:'Q', 13:'K', 14:'A' };
+function isRed(suit) { return suit === 'heart' || suit === 'diamond'; }
+
+function renderCard(card) {
+  if (!card || !card.suit || !card.rank) return '';
+  const suit  = SUIT_SYMBOLS[card.suit] || card.suit;
+  const rank  = RANK_LABELS[card.rank]  || card.rank;
+  const color = isRed(card.suit) ? 'red' : 'black';
+  return '<div class="card ' + color + '">' + rank + '<br>' + suit + '</div>';
+}
+
+function renderCards(cards) {
+  if (!cards || cards.length === 0) return '<span class="no-cards">未发牌</span>';
+  return cards.map(renderCard).join('');
 }
 
 // ── 渲染房间 ──
-const PHASE_LABELS = {
-  preflop: '翻牌前', flop: '翻牌', turn: '转牌',
-  river: '河牌', showdown: '结算', waiting: '等待中'
-};
+const PHASE_LABELS = { preflop:'翻牌前', flop:'翻牌', turn:'转牌', river:'河牌', showdown:'结算', waiting:'等待中' };
 
 function renderRooms(rooms) {
   document.getElementById('room-count-badge').textContent = rooms.length;
   const wrap = document.getElementById('room-list-wrap');
 
-  if (rooms.length === 0) {
-    wrap.innerHTML = `<div class="empty-state"><div class="icon">🃏</div><div>暂无活跃房间</div></div>`;
+  if (!rooms.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">🃏</div><div>暂无活跃房间</div></div>';
     return;
   }
 
-  wrap.innerHTML = rooms.map(room => `
-    <div class="room-card">
-      <div class="room-header">
-        <div class="room-info">
-          <div class="room-id">#${room.shortId}</div>
-          <span class="phase-tag phase-${room.phase || 'waiting'}">
-            ${PHASE_LABELS[room.phase] || room.phase || '等待'}
-          </span>
-          <div class="room-meta">
-            <span>👥 ${room.playerCount}人</span>
-            <span>🃏 第${room.roundNum}手</span>
-            <span>💰 底池 ${room.pot}</span>
-          </div>
-        </div>
-        <button class="btn-close-room" onclick="confirmCloseRoom('${room.id}', '${room.shortId}')">
-          关闭房间
-        </button>
-      </div>
-      <div class="player-list">
-        ${room.players.length === 0
-          ? '<div style="color:#8b949e;font-size:13px;padding:4px 0">暂无玩家</div>'
-          : room.players.map(p => `
-            <div class="player-row">
-              <div class="player-left">
-                <div class="player-avatar">${p.name.slice(0,1).toUpperCase()}</div>
-                <div>
-                  <div class="player-name">${escHtml(p.name)}</div>
-                  <div class="player-chips">💰 ${p.chips} 筹码</div>
-                </div>
-              </div>
-              <button class="btn-kick" onclick="confirmKick('${p.socketId}', '${escHtml(p.name)}')">
-                踢出
-              </button>
-            </div>
-          `).join('')
-        }
-      </div>
-    </div>
-  `).join('');
+  wrap.innerHTML = rooms.map(function(room) {
+    const roomIdSafe = escAttr(room.id);
+    const shortIdSafe = escHtml(room.shortId);
+
+    const playersHtml = room.players.length === 0
+      ? '<div style="color:#8b949e;font-size:13px;padding:8px 0">暂无玩家</div>'
+      : room.players.map(function(p) {
+          const sockSafe = escAttr(p.socketId);
+          const nameSafe = escHtml(p.name);
+          const initial  = (p.name || '?').slice(0,1).toUpperCase();
+          const statusColor = p.status === '弃牌' ? '#f85149' : (p.status === 'All-In' ? '#f0c040' : '#3fb950');
+          return '<div class="player-row">'
+            + '<div class="player-left">'
+            +   '<div class="player-avatar">' + initial + '</div>'
+            +   '<div class="player-info-text">'
+            +     '<div class="player-name">' + nameSafe + '</div>'
+            +     '<div class="player-meta">'
+            +       '<span>💰 ' + p.chips + ' 筹码</span>'
+            +       '<span style="color:' + statusColor + '">' + (p.status || '在局') + '</span>'
+            +     '</div>'
+            +   '</div>'
+            + '</div>'
+            + '<div class="hole-cards">' + renderCards(p.holeCards) + '</div>'
+            + '<div class="player-actions">'
+            +   '<button class="btn-kick" onclick="confirmKick(\'' + sockSafe + '\',\'' + nameSafe + '\')">踢出</button>'
+            + '</div>'
+            + '</div>';
+        }).join('');
+
+    // 公共牌
+    const commHtml = room.communityCards && room.communityCards.length > 0
+      ? '<div class="community-row">'
+        + '<span class="community-label">公共牌：</span>'
+        + '<div class="community-cards">' + renderCards(room.communityCards) + '</div>'
+        + '</div>'
+      : '';
+
+    return '<div class="room-card">'
+      + '<div class="room-header">'
+      +   '<div class="room-info">'
+      +     '<div class="room-id">#' + shortIdSafe + '</div>'
+      +     '<span class="phase-tag phase-' + (room.phase || 'waiting') + '">'
+      +       (PHASE_LABELS[room.phase] || room.phase || '等待')
+      +     '</span>'
+      +     '<div class="room-meta">'
+      +       '<span>👥 ' + room.playerCount + '人</span>'
+      +       '<span>🃏 第' + room.roundNum + '手</span>'
+      +       '<span>💰 底池 ' + room.pot + '</span>'
+      +     '</div>'
+      +   '</div>'
+      +   '<button class="btn-close-room" onclick="confirmCloseRoom(\'' + roomIdSafe + '\',\'' + shortIdSafe + '\')">关闭房间</button>'
+      + '</div>'
+      + '<div class="player-list">' + playersHtml + '</div>'
+      + commHtml
+      + '</div>';
+  }).join('');
 }
 
 // ── 踢人 ──
 function confirmKick(socketId, name) {
-  showModal(
-    `踢出玩家`,
-    `确定要将 <strong>${name}</strong> 踢出游戏吗？`,
-    async () => {
-      try {
-        const res = await fetch('/api/admin/kick', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pass: adminPass, socketId, reason: '管理员将你踢出' }),
-        });
-        const d = await res.json();
-        if (d.ok) {
-          addLog('ok', `已踢出玩家: ${name}`);
-          fetchStatus();
-        } else {
-          addLog('err', `踢出失败: ${d.error}`);
-        }
-      } catch(e) { addLog('err', '操作失败: ' + e.message); }
-    }
-  );
+  showModal('踢出玩家', '确定要将 <strong>' + name + '</strong> 踢出游戏吗？', async function() {
+    try {
+      const res = await fetch('/api/admin/kick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pass: adminPass, socketId: socketId, reason: '管理员将你踢出' })
+      });
+      const d = await res.json();
+      if (d.ok) { addLog('ok', '已踢出玩家: ' + name); fetchStatus(); }
+      else       { addLog('err', '踢出失败: ' + d.error); }
+    } catch(e) { addLog('err', '操作失败: ' + e.message); }
+  });
 }
 
 // ── 关闭房间 ──
 function confirmCloseRoom(roomId, shortId) {
-  showModal(
-    `关闭房间`,
-    `确定要关闭房间 <strong>#${shortId}</strong> 吗？房间内所有玩家将被断开连接。`,
-    async () => {
-      try {
-        const res = await fetch('/api/admin/close-room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pass: adminPass, roomId }),
-        });
-        const d = await res.json();
-        if (d.ok) {
-          addLog('ok', `已关闭房间 #${shortId}`);
-          fetchStatus();
-        } else {
-          addLog('err', `关闭失败: ${d.error}`);
-        }
-      } catch(e) { addLog('err', '操作失败: ' + e.message); }
-    }
-  );
+  showModal('关闭房间', '确定要关闭房间 <strong>#' + shortId + '</strong> 吗？房间内所有玩家将被断开连接。', async function() {
+    try {
+      const res = await fetch('/api/admin/close-room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pass: adminPass, roomId: roomId })
+      });
+      const d = await res.json();
+      if (d.ok) { addLog('ok', '已关闭房间 #' + shortId); fetchStatus(); }
+      else       { addLog('err', '关闭失败: ' + d.error); }
+    } catch(e) { addLog('err', '操作失败: ' + e.message); }
+  });
 }
 
 // ── 弹窗 ──
 function showModal(title, body, onConfirm) {
   document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-body').innerHTML    = body;
   document.getElementById('modal').classList.add('show');
   modalCallback = onConfirm;
-  document.getElementById('modal-confirm').onclick = () => {
-    closeModal();
-    if (modalCallback) modalCallback();
-  };
+  document.getElementById('modal-confirm').onclick = function() { closeModal(); if (modalCallback) modalCallback(); };
 }
-function closeModal() {
-  document.getElementById('modal').classList.remove('show');
-  modalCallback = null;
-}
+function closeModal() { document.getElementById('modal').classList.remove('show'); modalCallback = null; }
 
 // ── 日志 ──
 function addLog(type, msg) {
   const log = document.getElementById('op-log');
-  const entry = document.createElement('div');
-  entry.className = `log-entry ${type}`;
-  entry.innerHTML = `<span class="log-time">${nowStr()}</span><span class="log-msg">${escHtml(msg)}</span>`;
-  log.appendChild(entry);
+  const el  = document.createElement('div');
+  el.className = 'log-entry ' + type;
+  el.innerHTML = '<span class="log-time">' + nowStr() + '</span><span class="log-msg">' + escHtml(msg) + '</span>';
+  log.appendChild(el);
   log.scrollTop = log.scrollHeight;
 }
 function clearLog() { document.getElementById('op-log').innerHTML = ''; }
 
 // ── 工具 ──
-function setConnDot(ok) {
-  document.getElementById('conn-dot').style.background = ok ? '#3fb950' : '#f85149';
-}
-function nowStr() {
-  const d = new Date();
-  return d.toLocaleTimeString('zh-CN', { hour12: false });
-}
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function setConnDot(ok) { document.getElementById('conn-dot').style.background = ok ? '#3fb950' : '#f85149'; }
+function nowStr() { return new Date().toLocaleTimeString('zh-CN', { hour12: false }); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>
