@@ -183,10 +183,7 @@ body {
 #pot-area span { font-size: 12px; color: #aaa; font-weight: normal; }
 #community-cards { display: flex; gap: 7px; min-height: 74px; align-items: center; }
 #msg-log {
-  font-size: 18px; font-weight: bold; color: #fff; min-height: 24px; text-align: center;
-  padding: 6px 18px;
-  background: rgba(0,130,0,.25); border-radius: 8px; max-width: 380px;
-  text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  display: none; /* 已由行动记录区替代，不再显示 */
 }
 #thinking-indicator {
   font-size: 16px; font-weight: bold; color: #7ef7c0; min-height: 20px;
@@ -234,35 +231,38 @@ body {
 /* 行动记录区 */
 #action-log-area {
   width: 100%; max-width: 980px;
-  background: rgba(0,0,0,.45);
+  background: rgba(0,0,0,.5);
   border: 1px solid #2a472a;
   border-radius: 10px;
   margin: 6px 0 4px;
-  padding: 6px 14px;
+  padding: 8px 14px 6px;
   display: flex; flex-direction: column; gap: 0;
 }
 #action-log-title {
-  font-size: 11px; color: #666; margin-bottom: 4px;
-  text-transform: uppercase; letter-spacing: 1px;
+  font-size: 12px; color: #557755; margin-bottom: 6px;
+  letter-spacing: 1px; flex-shrink: 0;
 }
 #action-log-list {
-  display: flex; flex-direction: column-reverse;
-  max-height: 72px; overflow-y: auto;
-  gap: 1px;
+  display: flex; flex-direction: column;
+  height: 110px; overflow-y: scroll;
+  gap: 2px;
+  scrollbar-width: thin; scrollbar-color: #2a5a2a transparent;
 }
-#action-log-list::-webkit-scrollbar { width: 4px; }
-#action-log-list::-webkit-scrollbar-thumb { background: #2a5a2a; border-radius: 2px; }
+#action-log-list::-webkit-scrollbar { width: 5px; }
+#action-log-list::-webkit-scrollbar-track { background: transparent; }
+#action-log-list::-webkit-scrollbar-thumb { background: #2a5a2a; border-radius: 3px; }
 .log-entry {
-  font-size: 13px; color: #ccc; padding: 1px 0;
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  font-size: 14px; color: #ccc; padding: 2px 4px;
+  border-radius: 3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 .log-entry.log-fold  { color: #888; }
 .log-entry.log-raise { color: #ffa040; }
 .log-entry.log-allin { color: #ff6060; font-weight: bold; }
 .log-entry.log-call  { color: #7ec8f7; }
-.log-entry.log-check { color: #9fc; }
-.log-entry.log-phase { color: #ffd700; font-style: italic; font-size: 12px; }
+.log-entry.log-check { color: #7ef7a0; }
+.log-entry.log-phase { color: #ffd700; font-style: italic; font-size: 12px; background: rgba(255,215,0,.06); }
 .log-entry.log-win   { color: #ffd700; font-weight: bold; }
 
 /* 我的区域 */
@@ -419,6 +419,45 @@ body {
 }
 #showdown-box .close-btn:hover { background: #378037; }
 
+/* ── 投票弹窗 ── */
+#vote-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 400;
+  align-items: center; justify-content: center;
+}
+#vote-overlay.show { display: flex; }
+#vote-box {
+  background: linear-gradient(145deg, #1a2a1a, #0e1a0e);
+  border: 2px solid #4aaa4a;
+  border-radius: 18px;
+  padding: 32px 40px;
+  min-width: 320px; max-width: 90vw;
+  text-align: center;
+  animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+}
+#vote-box h3 { font-size: 20px; color: #ffd700; margin-bottom: 10px; }
+#vote-box .vote-desc { font-size: 14px; color: #aaa; margin-bottom: 22px; line-height: 1.6; }
+#vote-box .vote-progress { font-size: 13px; color: #9fc; margin-bottom: 18px; }
+#vote-box .vote-btns { display: flex; gap: 14px; justify-content: center; }
+#vote-agree-btn {
+  background: #2a6a2a; color: #fff; border: none;
+  padding: 10px 28px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;
+}
+#vote-agree-btn:hover { background: #378037; }
+#vote-reject-btn {
+  background: #6a2a2a; color: #fff; border: none;
+  padding: 10px 28px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;
+}
+#vote-reject-btn:hover { background: #8a3a3a; }
+#vote-cancel-btn {
+  background: #555; color: #fff; border: none;
+  padding: 10px 28px; border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+#vote-cancel-btn:hover { background: #777; }
+.vote-rejected-names { color: #ff8080; font-size: 15px; font-weight: bold; margin: 12px 0; }
+
 /* ── 游戏结束弹窗 ── */
 #gameover-overlay {
   display: none;
@@ -475,7 +514,14 @@ body {
 <div id="top-bar">
   <h1>🃏 德州扑克 联机版</h1>
   <div id="phase-badge">大厅</div>
-  <div id="room-info">-</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button id="btn-vote-end" onclick="startVoteEnd()"
+      style="display:none;background:#6a3a00;color:#ffd700;border:1px solid #aa6a00;
+             padding:4px 14px;border-radius:7px;font-size:13px;cursor:pointer;">
+      🏳️ 提前结束
+    </button>
+    <div id="room-info">-</div>
+  </div>
 </div>
 
 <!-- 连接状态 -->
@@ -628,6 +674,22 @@ body {
   </div>
 </div>
 
+<!-- ══════ 提前结束投票弹窗 ══════ -->
+<div id="vote-overlay">
+  <div id="vote-box">
+    <h3 id="vote-title">🏳️ 提前结束对局</h3>
+    <div class="vote-desc" id="vote-desc"></div>
+    <div class="vote-progress" id="vote-progress"></div>
+    <div class="vote-btns" id="vote-btns">
+      <button id="vote-agree-btn"  onclick="sendVote(true)">✅ 同意</button>
+      <button id="vote-reject-btn" onclick="sendVote(false)">❌ 反对</button>
+    </div>
+    <div id="vote-cancel-row" style="display:none; margin-top:12px;">
+      <button id="vote-cancel-btn" onclick="cancelVote()">撤销投票</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════ 游戏结束弹窗 ══════ -->
 <div id="gameover-overlay">
   <div id="gameover-box">
@@ -775,6 +837,8 @@ socket.on('hand_started', (data) => {
   switchToGame();
   hideResultPanel();
   clearActionLog();
+  // 房主显示提前结束按钮
+  document.getElementById('btn-vote-end').style.display = isHost ? 'inline-block' : 'none';
   actionTimeout = data.actionTimeout || 0;
   handleStateUpdate(data);
   setMsg(`🃏 第${data.roundNum}手开始！`, '#9fc');
@@ -820,9 +884,11 @@ function appendActionLog(text, type) {
   const now = new Date();
   const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
   el.textContent = `[${ts}] ${text}`;
-  list.prepend(el);
-  // 最多保留50条
-  while (list.children.length > 50) list.removeChild(list.lastChild);
+  list.appendChild(el);
+  // 自动滚到最新
+  list.scrollTop = list.scrollHeight;
+  // 最多保留80条
+  while (list.children.length > 80) list.removeChild(list.firstChild);
 }
 
 function clearActionLog() {
@@ -869,6 +935,7 @@ socket.on('game_continued', ({ startChips }) => {
 socket.on('room_dissolved', () => {
   document.getElementById('gameover-overlay').classList.remove('show');
   document.getElementById('showdown-overlay').classList.remove('show');
+  document.getElementById('vote-overlay').classList.remove('show');
   // 返回大厅
   document.getElementById('game-screen').style.display  = 'none';
   document.getElementById('lobby-screen').style.display = 'flex';
@@ -877,7 +944,89 @@ socket.on('room_dissolved', () => {
   document.getElementById('room-info').textContent      = '-';
   roomId = null; isHost = false; myCards = []; gameState = null;
   setMsg('房间已解散', '#aaa');
+  document.getElementById('btn-vote-end').style.display = 'none';
 });
+
+// ── 投票：房主发起 ──
+socket.on('vote_end_started', ({ initiatorName, total, agreed }) => {
+  const isInitiator = isHost;
+  document.getElementById('vote-title').textContent = '🏳️ 提前结束对局';
+  document.getElementById('vote-desc').innerHTML =
+    `<b>${initiatorName}</b> 发起提前结束投票<br>需要所有真人玩家同意`;
+  document.getElementById('vote-progress').textContent = `已同意 ${agreed} / ${total}`;
+  // 房主已自动同意，只显示撤销
+  if (isInitiator) {
+    document.getElementById('vote-btns').style.display = 'none';
+    document.getElementById('vote-cancel-row').style.display = 'block';
+  } else {
+    document.getElementById('vote-btns').style.display = 'flex';
+    document.getElementById('vote-cancel-row').style.display = 'none';
+  }
+  document.getElementById('vote-overlay').classList.add('show');
+});
+
+socket.on('vote_end_progress', ({ agreed, total }) => {
+  document.getElementById('vote-progress').textContent = `已同意 ${agreed} / ${total}`;
+  // 自己已投票，隐藏按钮
+  document.getElementById('vote-btns').style.display = 'none';
+});
+
+socket.on('vote_end_rejected', ({ rejectedNames }) => {
+  document.getElementById('vote-overlay').classList.remove('show');
+  // 在行动日志里记录反对者
+  const names = rejectedNames.join('、');
+  appendActionLog(`🚫 投票被否决，反对者：${names}`, 'fold');
+  // 弹出简短提示
+  showVoteResult(`❌ 投票被否决\n反对者：${names}`);
+});
+
+socket.on('vote_end_cancelled', () => {
+  document.getElementById('vote-overlay').classList.remove('show');
+  appendActionLog('🏳️ 提前结束投票已取消', '');
+});
+
+socket.on('game_ended_early', ({ players }) => {
+  document.getElementById('vote-overlay').classList.remove('show');
+  document.getElementById('gameover-overlay').classList.remove('show');
+  document.getElementById('showdown-overlay').classList.remove('show');
+  // 返回等待室
+  document.getElementById('game-screen').style.display  = 'none';
+  document.getElementById('lobby-screen').style.display = 'flex';
+  document.getElementById('waiting-room').style.display = 'flex';
+  document.getElementById('phase-badge').textContent    = '等待';
+  updateWaitingPlayers(players);
+  appendActionLog('✅ 全体同意，提前结束对局', 'win');
+  document.getElementById('btn-vote-end').style.display = 'none';
+});
+
+// 投票 JS 函数
+function startVoteEnd() {
+  socket.emit('vote_end_start');
+}
+function sendVote(agree) {
+  socket.emit('vote_end_reply', { agree });
+  document.getElementById('vote-btns').style.display = 'none';
+  document.getElementById('vote-progress').textContent += agree ? '  （你已同意）' : '  （你已反对）';
+}
+function cancelVote() {
+  socket.emit('vote_end_cancel');
+}
+function showVoteResult(msg) {
+  // 简单弹出 alert 提示
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+    'background:#1a1a2a;border:2px solid #4a4aaa;border-radius:14px;padding:28px 36px;' +
+    'z-index:500;text-align:center;color:#eee;font-size:16px;white-space:pre-line;' +
+    'animation:popIn .3s cubic-bezier(.34,1.56,.64,1);min-width:260px;';
+  box.textContent = msg;
+  const btn = document.createElement('button');
+  btn.textContent = '确认';
+  btn.style.cssText = 'display:block;margin:16px auto 0;background:#2a5a2a;color:#fff;' +
+    'border:none;padding:8px 24px;border-radius:8px;cursor:pointer;font-size:14px;';
+  btn.onclick = () => document.body.removeChild(box);
+  box.appendChild(btn);
+  document.body.appendChild(box);
+}
 
 // ════════════════════════════════════════════════════
 //  游戏状态处理

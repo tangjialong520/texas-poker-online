@@ -636,6 +636,22 @@ function advancePhase(room) {
   scheduleAction(room);
 }
 
+// 提前结束游戏，所有人回大厅
+function endGameEarly(room) {
+  clearTurnTimer(room);
+  room.aiTimers.forEach(t => clearTimeout(t));
+  room.aiTimers = [];
+  room.vote = null;
+  room.phase = 'waiting';
+  room.G = null;
+  // 重置玩家状态（保留筹码）
+  room.players.forEach(p => { /* 保持原样 */ });
+  io.to(room.id).emit('game_ended_early', {
+    players: room.players.map(p => ({ id: p.socketId, name: p.name })),
+  });
+  console.log(`[提前结束] 房间 ${room.id}`);
+}
+
 function doShowdown(room) {
   const G      = room.G;
   const inHand = inHandPlayers(G);
@@ -910,6 +926,94 @@ io.on('connection', (socket) => {
     room.aiTimers.forEach(t => clearTimeout(t));
     io.to(room.id).emit('room_dissolved', {});
     rooms.delete(room.id);
+  });
+
+  // ── 提前结束投票 ──
+  // 房主发起投票
+  socket.on('vote_end_start', () => {
+    const room = rooms.get(socket.roomId);
+    if (!room || !room.G) return;
+    if (room.hostId !== socket.id) {
+      socket.emit('error', { msg: '只有房主可以发起结束投票' });
+      return;
+    }
+    if (room.vote) {
+      socket.emit('error', { msg: '已有进行中的投票' });
+      return;
+    }
+    // 只统计真人玩家
+    const humanPlayers = room.G.players.filter(p => p.isHuman);
+    if (humanPlayers.length <= 1) {
+      // 只有一个真人，直接结束
+      endGameEarly(room);
+      return;
+    }
+    room.vote = {
+      initiator: socket.id,
+      votes: {},     // socketId -> true(同意)/false(反对)
+      total: humanPlayers.length,
+    };
+    // 房主自动同意
+    room.vote.votes[socket.id] = true;
+
+    io.to(room.id).emit('vote_end_started', {
+      initiatorName: room.G.players.find(p => p.socketId === socket.id)?.name || '房主',
+      total: humanPlayers.length,
+      agreed: 1,
+    });
+    console.log(`[投票] 房间 ${room.id} 发起提前结束投票`);
+  });
+
+  // 玩家投票
+  socket.on('vote_end_reply', ({ agree }) => {
+    const room = rooms.get(socket.roomId);
+    if (!room || !room.vote) return;
+    const humanPlayers = room.G ? room.G.players.filter(p => p.isHuman) : [];
+    const me = humanPlayers.find(p => p.socketId === socket.id);
+    if (!me) return;
+    if (room.vote.votes[socket.id] !== undefined) {
+      socket.emit('error', { msg: '你已经投过票了' });
+      return;
+    }
+
+    room.vote.votes[socket.id] = agree;
+    const agreedCount  = Object.values(room.vote.votes).filter(v => v).length;
+    const rejectedIds  = Object.entries(room.vote.votes).filter(([,v]) => !v).map(([id]) => id);
+    const votedCount   = Object.keys(room.vote.votes).length;
+
+    // 有人反对 → 立刻公示并取消投票
+    if (!agree) {
+      const rejectedNames = rejectedIds.map(id => {
+        const p = humanPlayers.find(p => p.socketId === id);
+        return p ? p.name : '未知';
+      });
+      io.to(room.id).emit('vote_end_rejected', { rejectedNames });
+      room.vote = null;
+      return;
+    }
+
+    // 全部同意 → 结束游戏
+    if (agreedCount >= room.vote.total) {
+      room.vote = null;
+      endGameEarly(room);
+      return;
+    }
+
+    // 还未全票，通知进度
+    io.to(room.id).emit('vote_end_progress', {
+      agreed: agreedCount,
+      total: room.vote.total,
+      votedCount,
+    });
+  });
+
+  // 取消投票（房主）
+  socket.on('vote_end_cancel', () => {
+    const room = rooms.get(socket.roomId);
+    if (!room || !room.vote) return;
+    if (room.hostId !== socket.id) return;
+    room.vote = null;
+    io.to(room.id).emit('vote_end_cancelled', {});
   });
 
   // 断开连接
