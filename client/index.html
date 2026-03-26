@@ -231,6 +231,40 @@ body {
 }
 #rp-next-btn:hover { background: #378037; }
 
+/* 行动记录区 */
+#action-log-area {
+  width: 100%; max-width: 980px;
+  background: rgba(0,0,0,.45);
+  border: 1px solid #2a472a;
+  border-radius: 10px;
+  margin: 6px 0 4px;
+  padding: 6px 14px;
+  display: flex; flex-direction: column; gap: 0;
+}
+#action-log-title {
+  font-size: 11px; color: #666; margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+#action-log-list {
+  display: flex; flex-direction: column-reverse;
+  max-height: 72px; overflow-y: auto;
+  gap: 1px;
+}
+#action-log-list::-webkit-scrollbar { width: 4px; }
+#action-log-list::-webkit-scrollbar-thumb { background: #2a5a2a; border-radius: 2px; }
+.log-entry {
+  font-size: 13px; color: #ccc; padding: 1px 0;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.log-entry.log-fold  { color: #888; }
+.log-entry.log-raise { color: #ffa040; }
+.log-entry.log-allin { color: #ff6060; font-weight: bold; }
+.log-entry.log-call  { color: #7ec8f7; }
+.log-entry.log-check { color: #9fc; }
+.log-entry.log-phase { color: #ffd700; font-style: italic; font-size: 12px; }
+.log-entry.log-win   { color: #ffd700; font-weight: bold; }
+
 /* 我的区域 */
 #player-row { display: flex; justify-content: center; }
 #my-panel {
@@ -546,6 +580,12 @@ body {
       </div>
     </div>
 
+    <!-- 行动记录 -->
+    <div id="action-log-area">
+      <div id="action-log-title">📋 行动记录</div>
+      <div id="action-log-list"></div>
+    </div>
+
     <!-- 我的区域 -->
     <div id="player-row">
       <div id="my-panel">
@@ -686,10 +726,11 @@ function copyCode() {
 // ════════════════════════════════════════════════════
 //  Socket 事件
 // ════════════════════════════════════════════════════
-socket.on('room_created', ({ roomId: rid, players, startChips, actionTimeout: at }) => {
+socket.on('room_created', ({ roomId: rid, players, startChips, actionTimeout: at, myName: mn }) => {
   roomId = rid;
   isHost = true;
   actionTimeout = at || 0;
+  if (mn) { myName = mn; document.getElementById('my-name').value = mn; }
   document.getElementById('room-code-display').textContent = rid;
   document.getElementById('waiting-room').style.display = 'flex';
   document.getElementById('waiting-settings').textContent =
@@ -698,10 +739,11 @@ socket.on('room_created', ({ roomId: rid, players, startChips, actionTimeout: at
   document.getElementById('room-info').textContent = `房间: ${rid}`;
 });
 
-socket.on('join_success', ({ roomId: rid, players, isHost: h, startChips, actionTimeout: at }) => {
+socket.on('join_success', ({ roomId: rid, players, isHost: h, startChips, actionTimeout: at, myName: mn }) => {
   roomId = rid;
   isHost = h;
   actionTimeout = at || 0;
+  if (mn) { myName = mn; document.getElementById('my-name').value = mn; }
   document.getElementById('room-info').textContent = `房间: ${rid}`;
   document.getElementById('room-code-display').textContent = rid;
   document.getElementById('waiting-room').style.display = 'flex';
@@ -732,6 +774,7 @@ function updateWaitingPlayers(players) {
 socket.on('hand_started', (data) => {
   switchToGame();
   hideResultPanel();
+  clearActionLog();
   actionTimeout = data.actionTimeout || 0;
   handleStateUpdate(data);
   setMsg(`🃏 第${data.roundNum}手开始！`, '#9fc');
@@ -752,9 +795,40 @@ socket.on('your_turn', (info) => {
   startClientTimer(actionTimeout);
 });
 
-socket.on('game_msg', ({ text }) => {
+socket.on('game_msg', ({ text, actorId, msgType }) => {
   setMsg(text);
+  appendActionLog(text, msgType || detectLogType(text));
 });
+
+// ── 行动日志 ──
+function detectLogType(text) {
+  if (text.includes('弃牌')) return 'fold';
+  if (text.includes('全押')) return 'allin';
+  if (text.includes('加注')) return 'raise';
+  if (text.includes('跟注')) return 'call';
+  if (text.includes('过牌')) return 'check';
+  if (text.includes('翻牌') || text.includes('转牌') || text.includes('河牌')) return 'phase';
+  if (text.includes('赢得') || text.includes('胜者')) return 'win';
+  return '';
+}
+
+function appendActionLog(text, type) {
+  const list = document.getElementById('action-log-list');
+  if (!list) return;
+  const el = document.createElement('div');
+  el.className = 'log-entry' + (type ? ' log-' + type : '');
+  const now = new Date();
+  const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  el.textContent = `[${ts}] ${text}`;
+  list.prepend(el);
+  // 最多保留50条
+  while (list.children.length > 50) list.removeChild(list.lastChild);
+}
+
+function clearActionLog() {
+  const list = document.getElementById('action-log-list');
+  if (list) list.innerHTML = '';
+}
 
 socket.on('hand_over', (data) => {
   stopClientTimer();

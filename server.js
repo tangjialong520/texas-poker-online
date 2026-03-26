@@ -182,14 +182,22 @@ class Room {
   addPlayer(socketId, name) {
     if (this.players.length >= this.maxPlayers) return false;
     if (this.players.find(p => p.socketId === socketId)) return false;
+    // 名字重复时自动加数字后缀
+    let finalName = name || '玩家';
+    const names = this.players.map(p => p.name);
+    if (names.includes(finalName)) {
+      let suffix = 2;
+      while (names.includes(finalName + suffix)) suffix++;
+      finalName = finalName + suffix;
+    }
     this.players.push({
       socketId,
-      name,
+      name: finalName,
       chips: this.startChips,
       isAI: false,
       id: socketId,
     });
-    return true;
+    return finalName; // 返回最终名字
   }
 
   removePlayer(socketId) {
@@ -236,7 +244,8 @@ class Room {
 //  游戏逻辑（服务端）
 // ════════════════════════════════════════════
 function startGame(room) {
-  const AI_NAMES = ['🤖 机器人A','🦊 机器人B','🐼 机器人C','🐯 机器人D'];
+  const AI_EMOJI  = ['🤖','🦊','🐼','🐯','🦁','🐸'];
+  const AI_PREFIX = ['机器人A','机器人B','机器人C','机器人D','机器人E','机器人F'];
   const players  = room.players.map(p => ({
     ...p,
     bet:       0,
@@ -246,14 +255,27 @@ function startGame(room) {
     isHuman:   true,
     isAI:      false,
     eliminated: false,
+    potContrib: 0,
   }));
 
-  // 添加AI
+  const usedNames = new Set(players.map(p => p.name));
+
+  // 添加AI，名字不与已有玩家重复
   for (let i = 0; i < room.aiCount; i++) {
+    const emoji  = AI_EMOJI[i % AI_EMOJI.length];
+    let baseName = AI_PREFIX[i % AI_PREFIX.length];
+    let aiName   = `${emoji} ${baseName}`;
+    // 若重名则加数字后缀
+    if (usedNames.has(aiName)) {
+      let suffix = 2;
+      while (usedNames.has(`${emoji} ${baseName}${suffix}`)) suffix++;
+      aiName = `${emoji} ${baseName}${suffix}`;
+    }
+    usedNames.add(aiName);
     players.push({
       id:        'ai_' + i,
       socketId:  null,
-      name:      AI_NAMES[i],
+      name:      aiName,
       chips:     room.startChips,
       bet:       0,
       holeCards: [],
@@ -262,6 +284,7 @@ function startGame(room) {
       isHuman:   false,
       isAI:      true,
       eliminated: false,
+      potContrib: 0,
     });
   }
 
@@ -302,6 +325,7 @@ function collectBlind(G, idx, amount) {
   p.chips -= actual;
   p.bet   += actual;
   G.pot   += actual;
+  p.potContrib = (p.potContrib || 0) + actual;
 }
 
 function activePlayers(G) {
@@ -327,7 +351,7 @@ function startNewHand(room) {
   G.acted      = new Set();
   G.lastRaiser = null;
   G.gameOver   = false;
-  G.players.forEach(p => { p.bet=0; p.holeCards=[]; p.folded=false; p.allIn=false; });
+  G.players.forEach(p => { p.bet=0; p.holeCards=[]; p.folded=false; p.allIn=false; p.potContrib=0; });
 
   // 移动庄家（跳过已淘汰/无筹码的）
   G.dealerIdx = nextActiveIdx(G, G.dealerIdx);
@@ -459,6 +483,7 @@ function applyAction(room, playerId, type, raiseTarget) {
       if (callAmt > 0) {
         const actual = Math.min(callAmt, p.chips);
         p.chips -= actual; p.bet += actual; G.pot += actual;
+        p.potContrib = (p.potContrib || 0) + actual;
         if (p.chips === 0) p.allIn = true;
         G.acted.add(p.id);
         msg = `${p.name} 跟注 ${actual}`;
@@ -471,6 +496,7 @@ function applyAction(room, playerId, type, raiseTarget) {
     case 'call': {
       const actual = Math.min(callAmt, p.chips);
       p.chips -= actual; p.bet += actual; G.pot += actual;
+      p.potContrib = (p.potContrib || 0) + actual;
       if (p.chips === 0) p.allIn = true;
       G.acted.add(p.id);
       msg = `${p.name} 跟注 ${actual}`;
@@ -482,6 +508,7 @@ function applyAction(room, playerId, type, raiseTarget) {
       const toAdd  = target - p.bet;
       const actual = Math.min(toAdd, p.chips);
       p.chips -= actual; p.bet += actual; G.pot += actual;
+      p.potContrib = (p.potContrib || 0) + actual;
       G.minRaise   = p.bet - G.currentBet;
       G.currentBet = p.bet;
       G.lastRaiser = p.id;
@@ -494,6 +521,7 @@ function applyAction(room, playerId, type, raiseTarget) {
     case 'allin': {
       const amt = p.chips;
       p.chips -= amt; p.bet += amt; G.pot += amt;
+      p.potContrib = (p.potContrib || 0) + amt;
       if (p.bet > G.currentBet) {
         G.minRaise   = p.bet - G.currentBet;
         G.currentBet = p.bet;
@@ -620,25 +648,92 @@ function doShowdown(room) {
     hands[p.id] = all.length >= 5 ? evalHand(all) : evalFive(p.holeCards);
   });
 
-  inHand.sort((a,b) => cmpHand(hands[b.id], hands[a.id]));
-  const topHand = hands[inHand[0].id];
-  const winners = inHand.filter(p => cmpHand(hands[p.id], topHand) === 0);
-  const share   = Math.floor(G.pot / winners.length);
-  winners.forEach(p => { p.chips += share; });
-  const remain  = G.pot - share * winners.length;
-  if (remain > 0) winners[0].chips += remain;
+  // ── 边池计算（Side Pot）──
+  // 每个在手玩家按其本局总投入从小到大排序，逐层创建边池
+  // allIn玩家只参与自己投入范围内的边池
+  const allPlayers = G.players; // 含弃牌玩家（弃牌也投入了筹码）
+  
+  // 收集每个玩家本局实际投入（bet字段已清零，需要从pot还原）
+  // 实际上 bet 在每个下注轮结束后被清零了，所以我们在 G 上维护累计投入
+  // 用 G.totalBet 记录，这里直接用 potContrib 字段
+  // 获取实际分配：边池分配基于 G.potContribs（本局累计投入）
+  const contribs = {}; // playerId -> 本局累计投入
+  allPlayers.forEach(p => {
+    contribs[p.id] = p.potContrib || 0;
+  });
+
+  const totalContrib = Object.values(contribs).reduce((a, b) => a + b, 0);
+  // 如果 potContrib 没记录（旧逻辑），回退到简单分配
+  if (totalContrib === 0) {
+    // 简单分配
+    inHand.sort((a,b) => cmpHand(hands[b.id], hands[a.id]));
+    const topHand = hands[inHand[0].id];
+    const winners = inHand.filter(p => cmpHand(hands[p.id], topHand) === 0);
+    const share   = Math.floor(G.pot / winners.length);
+    winners.forEach(p => { p.chips += share; });
+    const remain  = G.pot - share * winners.length;
+    if (remain > 0) winners[0].chips += remain;
+    G.pot = 0;
+
+    const showdownData = inHand.map(p => ({
+      id: p.id, name: p.name,
+      holeCards: p.holeCards,
+      handName: hands[p.id] ? hands[p.id].name : '',
+      handRank: hands[p.id] ? hands[p.id].rank : 0,
+      isWinner: winners.some(w => w.id === p.id),
+    }));
+    endHand(room, winners, showdownData);
+    return;
+  }
+
+  // ── 标准边池计算 ──
+  // 按投入量排序，逐层计算主池和边池
+  const activePotPlayers = allPlayers.filter(p => contribs[p.id] > 0);
+  const sortedByContrib  = [...activePotPlayers].sort((a,b) => contribs[a.id] - contribs[b.id]);
+
+  const pots = []; // [{amount, eligible: [playerId,...]}]
+  let prevLevel = 0;
+
+  for (const p of sortedByContrib) {
+    const level = contribs[p.id];
+    if (level <= prevLevel) continue;
+    const cap = level - prevLevel;
+    let potAmount = 0;
+    activePotPlayers.forEach(q => {
+      const contrib = Math.min(contribs[q.id], level) - Math.min(contribs[q.id], prevLevel);
+      potAmount += contrib;
+    });
+    // eligible：投入达到本层的且未弃牌的玩家
+    const eligible = inHand.filter(q => contribs[q.id] >= level).map(q => q.id);
+    if (potAmount > 0) {
+      pots.push({ amount: potAmount, eligible });
+    }
+    prevLevel = level;
+  }
+
+  // 分配每个边池
+  const overallWinners = new Set();
+  pots.forEach(pot => {
+    const eligPlayers = inHand.filter(p => pot.eligible.includes(p.id));
+    if (eligPlayers.length === 0) return;
+    eligPlayers.sort((a,b) => cmpHand(hands[b.id], hands[a.id]));
+    const topHand = hands[eligPlayers[0].id];
+    const potWinners = eligPlayers.filter(p => cmpHand(hands[p.id], topHand) === 0);
+    const share = Math.floor(pot.amount / potWinners.length);
+    potWinners.forEach(p => { p.chips += share; overallWinners.add(p.id); });
+    const remain = pot.amount - share * potWinners.length;
+    if (remain > 0) potWinners[0].chips += remain;
+  });
   G.pot = 0;
 
-  // 构建摊牌数据（只揭示在手的人的底牌，折叠玩家不揭示）
+  const winners = inHand.filter(p => overallWinners.has(p.id));
   const showdownData = inHand.map(p => ({
-    id:        p.id,
-    name:      p.name,
+    id: p.id, name: p.name,
     holeCards: p.holeCards,
-    handName:  hands[p.id] ? hands[p.id].name : '',
-    handRank:  hands[p.id] ? hands[p.id].rank : 0,
-    isWinner:  winners.some(w => w.id === p.id),
+    handName: hands[p.id] ? hands[p.id].name : '',
+    handRank: hands[p.id] ? hands[p.id].rank : 0,
+    isWinner: overallWinners.has(p.id),
   }));
-
   endHand(room, winners, showdownData);
 }
 
@@ -693,13 +788,15 @@ io.on('connection', (socket) => {
     rooms.set(roomId, room);
     socket.join(roomId);
     socket.roomId = roomId;
+    const hostPlayer = room.players.find(p => p.socketId === socket.id);
     socket.emit('room_created', {
       roomId,
       startChips: chips,
       actionTimeout: timeout,
       players: room.players.map(p => ({ id:p.socketId, name:p.name })),
+      myName: hostPlayer ? hostPlayer.name : (name || '玩家'),
     });
-    console.log(`[房间创建] ${roomId} 房主:${name} 筹码:${chips} 倒计时:${timeout}s`);
+    console.log(`[房间创建] ${roomId} 房主:${hostPlayer ? hostPlayer.name : name} 筹码:${chips} 倒计时:${timeout}s`);
   });
 
   // 加入房间
@@ -717,8 +814,8 @@ io.on('connection', (socket) => {
       socket.emit('error', { msg: '房间已满' });
       return;
     }
-    const ok = room.addPlayer(socket.id, name || '玩家');
-    if (!ok) {
+    const finalName = room.addPlayer(socket.id, name || '玩家');
+    if (!finalName) {
       socket.emit('error', { msg: '加入失败' });
       return;
     }
@@ -727,7 +824,7 @@ io.on('connection', (socket) => {
 
     io.to(room.id).emit('player_joined', {
       players: room.players.map(p => ({ id:p.socketId, name:p.name })),
-      newPlayer: name,
+      newPlayer: finalName,
     });
     socket.emit('join_success', {
       roomId:  room.id,
@@ -735,8 +832,9 @@ io.on('connection', (socket) => {
       isHost:  room.hostId === socket.id,
       startChips: room.startChips,
       actionTimeout: room.actionTimeout,
+      myName: finalName,  // 告知客户端最终使用的名字
     });
-    console.log(`[加入] ${name} 加入 ${room.id}`);
+    console.log(`[加入] ${finalName} 加入 ${room.id}`);
   });
 
   // 房主开始游戏
