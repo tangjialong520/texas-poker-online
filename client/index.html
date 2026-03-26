@@ -1057,33 +1057,6 @@ function closeShowdownOverlay() {
     renderShowdownMsg(gameState);
   }
 }
-  if (!data.showdownData) return;
-  data.showdownData.forEach(sd => {
-    if (sd.id === data.myId) return;
-    const reveal = document.getElementById('opp-reveal-' + sd.id);
-    const rcards = document.getElementById('opp-rcards-' + sd.id);
-    const rname  = document.getElementById('opp-rname-' + sd.id);
-    const cards  = document.getElementById('opp-cards-' + sd.id);
-    if (!reveal) return;
-    reveal.style.display = 'block';
-    if (cards) cards.style.display = 'none';
-    if (rcards) rcards.innerHTML = sd.holeCards.map(c => cardHtml(c,false,true)).join('');
-    if (rname) {
-      rname.textContent = sd.handName + (sd.isWinner ? ' 🏆' : '');
-    }
-  });
-}
-
-function closeShowdownOverlay() {
-  document.getElementById('showdown-overlay').classList.remove('show');
-  if (pendingGameOver) {
-    // 显示游戏结束弹窗
-    showGameOverOverlay(pendingGameOver);
-  } else {
-    document.getElementById('btn-next').style.display = 'inline-block';
-    renderShowdownMsg(gameState);
-  }
-}
 
 function showGameOverOverlay(data) {
   // 设置弹窗内容
