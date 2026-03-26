@@ -837,6 +837,11 @@ socket.on('hand_started', (data) => {
   switchToGame();
   hideResultPanel();
   clearActionLog();
+  // 重置下一手按钮状态
+  const rpBtn = document.getElementById('rp-next-btn');
+  if (rpBtn) { rpBtn.disabled = false; rpBtn.textContent = '下一手 →'; }
+  const btn2 = document.getElementById('btn-next');
+  if (btn2) { btn2.disabled = false; btn2.textContent = '下一手 →'; }
   // 房主显示提前结束按钮
   document.getElementById('btn-vote-end').style.display = isHost ? 'inline-block' : 'none';
   actionTimeout = data.actionTimeout || 0;
@@ -901,6 +906,20 @@ socket.on('hand_over', (data) => {
   actionTimeout = data.actionTimeout || actionTimeout;
   handleStateUpdate(data);
 
+  // ── 功能1：行动记录写胜利信息 ──
+  if (data.winnerIds && data.winnerIds.length > 0 && data.players) {
+    data.winnerIds.forEach(wid => {
+      const wp = data.players.find(p => p.id === wid);
+      if (!wp) return;
+      const gained = data.winnerChips && data.winnerChips[wid];
+      if (gained) {
+        appendActionLog(`🏆 ${wp.name} 赢得 ${gained} 筹码`, 'win');
+      } else {
+        appendActionLog(`🏆 ${wp.name} 赢得底池`, 'win');
+      }
+    });
+  }
+
   if (data.gameOver) {
     pendingGameOver = data;
     if (data.showdownData) {
@@ -919,11 +938,28 @@ socket.on('hand_over', (data) => {
       showResultPanel(null, null, null, null, data);
       hideActionButtons();
     }
+    // ── 功能2：所有真人玩家显示下一手按钮 ──
+    showNextHandBtn(data.humanCount || 1);
   }
 });
 
 socket.on('error', ({ msg }) => {
   showError(msg);
+});
+
+// ── 功能2：全员准备进度更新 ──
+socket.on('next_hand_ready', ({ readyCount, totalHumans, readyNames }) => {
+  const btn = document.getElementById('rp-next-btn');
+  if (btn) {
+    btn.textContent = `等待其他玩家... (${readyCount}/${totalHumans})`;
+    btn.disabled = true;
+  }
+  const btn2 = document.getElementById('btn-next');
+  if (btn2 && btn2.style.display !== 'none') {
+    btn2.textContent = `等待其他玩家... (${readyCount}/${totalHumans})`;
+    btn2.disabled = true;
+  }
+  appendActionLog(`⏳ 准备下一手 (${readyCount}/${totalHumans})`, 'phase');
 });
 
 socket.on('game_continued', ({ startChips }) => {
@@ -1239,17 +1275,20 @@ function showResultPanel(name, hand, cards, othersLines, data) {
 
   panel.classList.add('show');
 
-  // 下一手按钮
+  // 下一手按钮（此时不直接显示，由 showNextHandBtn 控制）
   const nextBtn = document.getElementById('rp-next-btn');
-  nextBtn.style.display = 'inline-block';
+  nextBtn.disabled = false;
 
   // 如果有待处理的游戏结束
   if (data && data.gameOver) {
     pendingGameOver = data;
     nextBtn.textContent = '确认 →';
+    nextBtn.style.display = 'inline-block';
   } else {
     pendingGameOver = null;
-    nextBtn.textContent = '下一手 →';
+    // 由 hand_over 中的 showNextHandBtn 控制
+    // 此处先隐藏，等 showNextHandBtn 调用再显示
+    nextBtn.style.display = 'none';
   }
 }
 
@@ -1268,7 +1307,22 @@ function nextHandFromPanel() {
   if (pendingGameOver) {
     showGameOverOverlay(pendingGameOver);
   } else {
+    // 重置按钮为等待状态（等服务端确认全员准备）
+    const btn = document.getElementById('rp-next-btn');
+    if (btn) { btn.textContent = '等待中...'; btn.disabled = true; }
     socket.emit('next_hand');
+  }
+}
+
+// ── 功能2：显示下一手按钮（所有玩家都能点） ──
+function showNextHandBtn(humanCount) {
+  // 如果只有1个真人，直接不需要等待
+  const label = humanCount > 1 ? '准备下一手 ✓' : '下一手 →';
+  const rpBtn = document.getElementById('rp-next-btn');
+  if (rpBtn) {
+    rpBtn.textContent = label;
+    rpBtn.disabled = false;
+    rpBtn.style.display = 'inline-block';
   }
 }
 

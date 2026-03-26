@@ -342,6 +342,9 @@ function startNewHand(room) {
   // 清除倒计时
   clearTurnTimer(room);
 
+  // 重置全员准备状态
+  room.readyForNext = new Set();
+
   G.roundNum++;
   G.deck      = shuffle(makeDeck());
   G.community = [];
@@ -558,12 +561,14 @@ function advanceTurn(room) {
 
   // 只剩一人
   if (inHand.length === 1) {
+    const chipsBefore = {};
+    G.players.forEach(p => { chipsBefore[p.id] = p.chips; });
     inHand[0].chips += G.pot;
     G.pot = 0;
     setPhase(G, 'showdown');
     broadcastState(room, 'state_update');
     broadcastMsg(room, `${inHand[0].name} 赢得底池！`, inHand[0].id);
-    endHand(room, inHand);
+    endHand(room, inHand, null, chipsBefore);
     return;
   }
 
@@ -682,6 +687,8 @@ function doShowdown(room) {
   // 如果 potContrib 没记录（旧逻辑），回退到简单分配
   if (totalContrib === 0) {
     // 简单分配
+    const chipsBeforeSimple = {};
+    G.players.forEach(p => { chipsBeforeSimple[p.id] = p.chips; });
     inHand.sort((a,b) => cmpHand(hands[b.id], hands[a.id]));
     const topHand = hands[inHand[0].id];
     const winners = inHand.filter(p => cmpHand(hands[p.id], topHand) === 0);
@@ -698,7 +705,7 @@ function doShowdown(room) {
       handRank: hands[p.id] ? hands[p.id].rank : 0,
       isWinner: winners.some(w => w.id === p.id),
     }));
-    endHand(room, winners, showdownData);
+    endHand(room, winners, showdownData, chipsBeforeSimple);
     return;
   }
 
@@ -727,6 +734,10 @@ function doShowdown(room) {
     prevLevel = level;
   }
 
+  // 结算前记录每位玩家筹码
+  const chipsBeforeStd = {};
+  G.players.forEach(p => { chipsBeforeStd[p.id] = p.chips; });
+
   // 分配每个边池
   const overallWinners = new Set();
   pots.forEach(pot => {
@@ -750,10 +761,10 @@ function doShowdown(room) {
     handRank: hands[p.id] ? hands[p.id].rank : 0,
     isWinner: overallWinners.has(p.id),
   }));
-  endHand(room, winners, showdownData);
+  endHand(room, winners, showdownData, chipsBeforeStd);
 }
 
-function endHand(room, winners, showdownData) {
+function endHand(room, winners, showdownData, chipsBeforeSettle) {
   const G   = room.G;
   setPhase(G, 'showdown');
 
@@ -773,6 +784,19 @@ function endHand(room, winners, showdownData) {
     G.gameOver = true;
   }
 
+  // 计算每位获胜者赢得的筹码数（结算后 - 结算前）
+  const winnerChips = {};
+  if (chipsBeforeSettle) {
+    winners.forEach(w => {
+      const before = chipsBeforeSettle[w.id] || 0;
+      const gained = w.chips - before;
+      if (gained > 0) winnerChips[w.id] = gained;
+    });
+  }
+
+  // 重置下一手准备状态
+  room.readyForNext = new Set();
+
   const pub = room.publicState();
   G.players.filter(p => p.isHuman).forEach(p => {
     const socket = io.sockets.sockets.get(p.socketId);
@@ -783,8 +807,10 @@ function endHand(room, winners, showdownData) {
       myId:         p.id,
       showdownData: showdownData || null,
       winnerIds:    winners.map(w => w.id),
+      winnerChips,
       gameOver:     G.gameOver,
       eliminatedPlayers: eliminatedPlayers.map(p => ({ id: p.id, name: p.name })),
+      humanCount:   G.players.filter(p => p.isHuman).length,
     });
   });
 }
@@ -879,15 +905,38 @@ io.on('connection', (socket) => {
     applyAction(room, cur.id, type, amount);
   });
 
-  // 下一手
+  // 下一手（全员确认）
   socket.on('next_hand', () => {
     const room = rooms.get(socket.roomId);
     if (!room || !room.G) return;
     if (room.G.phase !== 'showdown') return;
-    if (room.G.gameOver) return; // 游戏结束时不允许直接下一手
-    room.aiTimers.forEach(t => clearTimeout(t));
-    room.aiTimers = [];
-    startNewHand(room);
+    if (room.G.gameOver) return;
+
+    if (!room.readyForNext) room.readyForNext = new Set();
+    room.readyForNext.add(socket.id);
+
+    // 统计真人玩家（已连接）
+    const humanPlayers = room.G.players.filter(p => p.isHuman && p.socketId);
+    const readyCount   = humanPlayers.filter(p => room.readyForNext.has(p.socketId)).length;
+    const totalHumans  = humanPlayers.length;
+
+    if (readyCount >= totalHumans) {
+      // 全员准备，开始下一手
+      room.readyForNext = new Set();
+      room.aiTimers.forEach(t => clearTimeout(t));
+      room.aiTimers = [];
+      startNewHand(room);
+    } else {
+      // 通知所有人当前准备进度
+      const readyNames = humanPlayers
+        .filter(p => room.readyForNext.has(p.socketId))
+        .map(p => p.name);
+      io.to(room.id).emit('next_hand_ready', {
+        readyCount,
+        totalHumans,
+        readyNames,
+      });
+    }
   });
 
   // 游戏结束后继续（重置筹码）
