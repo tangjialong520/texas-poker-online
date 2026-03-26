@@ -166,14 +166,18 @@ body {
   min-height: 18px; font-weight: bold;
 }
 
-/* 牌桌中心 */
+/* 牌桌中心（横向布局）*/
 #table-center {
   background: radial-gradient(ellipse at center, #1d5c1d 0%, #0e3a0e 100%);
   border: 3px solid #2a6a2a;
   border-radius: 70px;
   padding: 24px 36px;
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  display: flex; flex-direction: row; align-items: center; gap: 0;
   min-height: 190px;
+}
+/* 左侧：底池+公牌+消息 */
+#table-left {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 12px;
 }
 #pot-area { font-size: 21px; font-weight: bold; color: #ffd700; }
 #pot-area span { font-size: 12px; color: #aaa; font-weight: normal; }
@@ -188,6 +192,42 @@ body {
   animation: pulse 1s infinite;
 }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* 右侧：结算信息区 */
+#result-panel {
+  width: 220px; min-width: 200px;
+  border-left: 1px solid rgba(255,255,255,.12);
+  margin-left: 18px; padding-left: 18px;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px;
+  min-height: 150px;
+  visibility: hidden;
+}
+#result-panel.show { visibility: visible; }
+#rp-winner-name {
+  font-size: 26px; font-weight: 900; color: #ffd700;
+  text-align: center; line-height: 1.2;
+}
+#rp-winner-label {
+  font-size: 12px; color: #aaa; text-align: center;
+}
+#rp-winner-hand {
+  font-size: 16px; color: #ffa040; font-weight: bold; text-align: center;
+}
+#rp-winner-cards {
+  display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;
+}
+#rp-other-hands {
+  font-size: 11px; color: #888; text-align: center; line-height: 1.6;
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding-top: 6px; width: 100%;
+}
+#rp-next-btn {
+  background: #2a6a2a; color: #fff; border: none;
+  padding: 8px 22px; border-radius: 8px; font-size: 14px; font-weight: bold;
+  cursor: pointer; margin-top: 4px;
+}
+#rp-next-btn:hover { background: #378037; }
 
 /* 我的区域 */
 #player-row { display: flex; justify-content: center; }
@@ -486,10 +526,22 @@ body {
 
     <!-- 桌面中心 -->
     <div id="table-center">
-      <div id="pot-area"><span>底池</span> 0</div>
-      <div id="community-cards"></div>
-      <div id="msg-log">等待游戏开始...</div>
-      <div id="thinking-indicator"></div>
+      <!-- 左侧：底池+公牌+消息 -->
+      <div id="table-left">
+        <div id="pot-area"><span>底池</span> 0</div>
+        <div id="community-cards"></div>
+        <div id="msg-log">等待游戏开始...</div>
+        <div id="thinking-indicator"></div>
+      </div>
+      <!-- 右侧：结算信息区 -->
+      <div id="result-panel">
+        <div id="rp-winner-label">🏆 本局胜者</div>
+        <div id="rp-winner-name"></div>
+        <div id="rp-winner-hand"></div>
+        <div id="rp-winner-cards"></div>
+        <div id="rp-other-hands"></div>
+        <button id="rp-next-btn" onclick="nextHandFromPanel()">下一手 →</button>
+      </div>
     </div>
 
     <!-- 我的区域 -->
@@ -677,6 +729,7 @@ function updateWaitingPlayers(players) {
 // 游戏开始 / 状态更新
 socket.on('hand_started', (data) => {
   switchToGame();
+  hideResultPanel();
   actionTimeout = data.actionTimeout || 0;
   handleStateUpdate(data);
   setMsg(`🃏 第${data.roundNum}手开始！`, '#9fc');
@@ -707,21 +760,21 @@ socket.on('hand_over', (data) => {
   handleStateUpdate(data);
 
   if (data.gameOver) {
-    // 游戏结束：先显示结算弹窗，再显示游戏结束弹窗
     pendingGameOver = data;
     if (data.showdownData) {
       showShowdownOverlay(data);
     } else {
       hideActionButtons();
+      hideResultPanel();
       showGameOverOverlay(data);
     }
   } else {
-    // 普通结算
     if (data.showdownData) {
       showShowdownOverlay(data);
     } else {
       renderShowdownMsg(data);
-      document.getElementById('btn-next').style.display = 'inline-block';
+      // 无摊牌：显示右侧面板的"下一手"按钮
+      showResultPanel(null, null, null, null, data);
       hideActionButtons();
     }
   }
@@ -871,23 +924,20 @@ function renderPlayers(data) {
   });
 }
 
-// ★ 结算弹窗（放大显示）
+// ★ 结算面板（右侧区域，无弹窗）
 function showShowdownOverlay(data) {
   if (!data.showdownData || data.showdownData.length === 0) {
     renderShowdownMsg(data);
-    document.getElementById('btn-next').style.display = 'inline-block';
-    hideActionButtons();
+    showResultPanel(null, null, null, null, data);
     return;
   }
 
-  // 找胜者
   const winners = data.showdownData.filter(sd => sd.isWinner);
   const losers  = data.showdownData.filter(sd => !sd.isWinner);
 
   if (winners.length === 0) {
     renderShowdownMsg(data);
-    document.getElementById('btn-next').style.display = 'inline-block';
-    hideActionButtons();
+    showResultPanel(null, null, null, null, data);
     return;
   }
 
@@ -898,41 +948,115 @@ function showShowdownOverlay(data) {
   const winnerHand = winners.length > 1
     ? winners.map(ww => ww.handName).join(' / ')
     : w.handName;
+  const winnerCards = (winners.length === 1 && w.holeCards) ? w.holeCards : null;
 
-  document.getElementById('sd-winner-name').textContent = winnerName;
-  document.getElementById('sd-winner-hand').textContent = `🎴 ${winnerHand}`;
-
-  // 显示胜者牌
-  const cardsEl = document.getElementById('sd-winner-cards');
-  cardsEl.innerHTML = '';
-  if (winners.length === 1 && w.holeCards) {
-    w.holeCards.forEach(c => {
-      cardsEl.insertAdjacentHTML('beforeend', cardHtml(c, false, false));
-    });
-  }
-
-  // 显示其他人手牌和牌型
-  const othersEl = document.getElementById('sd-other-hands');
-  othersEl.innerHTML = '';
-  losers.forEach(sd => {
-    const row = document.createElement('div');
-    row.className = 'other-hand-row';
-    const cardsHtml = sd.holeCards
-      ? sd.holeCards.map(c => cardHtml(c, false, true)).join('')
+  // 其他人手牌文字
+  const othersLines = losers.map(sd => {
+    const cardsText = sd.holeCards
+      ? sd.holeCards.map(c => `${RN[c.rank]}${SYM[c.suit]}`).join(' ')
       : '';
-    row.innerHTML = `<span style="color:#eee">${sd.name}</span>: ${cardsHtml} <span style="color:#f0c080">${sd.handName}</span>`;
-    othersEl.appendChild(row);
+    return `${sd.name}: ${cardsText} ${sd.handName}`;
   });
 
-  // 同时在牌桌上展示对手手牌
+  showResultPanel(winnerName, winnerHand, winnerCards, othersLines, data);
   renderShowdownOnTable(data);
-
-  document.getElementById('showdown-overlay').classList.add('show');
   hideActionButtons();
 }
 
 // 在牌桌上揭示手牌（结算时）
 function renderShowdownOnTable(data) {
+  if (!data.showdownData) return;
+  data.showdownData.forEach(sd => {
+    if (sd.id === data.myId) return;
+    const reveal = document.getElementById('opp-reveal-' + sd.id);
+    const rcards = document.getElementById('opp-rcards-' + sd.id);
+    const rname  = document.getElementById('opp-rname-' + sd.id);
+    const cards  = document.getElementById('opp-cards-' + sd.id);
+    if (!reveal) return;
+    reveal.style.display = 'block';
+    if (cards) cards.style.display = 'none';
+    if (rcards) rcards.innerHTML = sd.holeCards.map(c => cardHtml(c,false,true)).join('');
+    if (rname) {
+      rname.textContent = sd.handName + (sd.isWinner ? ' 🏆' : '');
+    }
+  });
+}
+
+function showResultPanel(name, hand, cards, othersLines, data) {
+  const panel = document.getElementById('result-panel');
+
+  if (!name) {
+    // 无摊牌结算：只显示消息和下一手按钮
+    renderShowdownMsg(data);
+    document.getElementById('rp-winner-label').textContent = '';
+    document.getElementById('rp-winner-name').textContent = '';
+    document.getElementById('rp-winner-hand').textContent = '';
+    document.getElementById('rp-winner-cards').innerHTML = '';
+    document.getElementById('rp-other-hands').innerHTML = '';
+  } else {
+    document.getElementById('rp-winner-label').textContent = '🏆 本局胜者';
+    document.getElementById('rp-winner-name').textContent = name;
+    document.getElementById('rp-winner-hand').textContent = hand ? `🎴 ${hand}` : '';
+
+    const cardsEl = document.getElementById('rp-winner-cards');
+    cardsEl.innerHTML = '';
+    if (cards) {
+      cards.forEach(c => {
+        cardsEl.insertAdjacentHTML('beforeend', cardHtml(c, false, true));
+      });
+    }
+
+    const othersEl = document.getElementById('rp-other-hands');
+    othersEl.innerHTML = othersLines && othersLines.length
+      ? othersLines.join('<br>')
+      : '';
+  }
+
+  panel.classList.add('show');
+
+  // 下一手按钮
+  const nextBtn = document.getElementById('rp-next-btn');
+  nextBtn.style.display = 'inline-block';
+
+  // 如果有待处理的游戏结束
+  if (data && data.gameOver) {
+    pendingGameOver = data;
+    nextBtn.textContent = '确认 →';
+  } else {
+    pendingGameOver = null;
+    nextBtn.textContent = '下一手 →';
+  }
+}
+
+function hideResultPanel() {
+  document.getElementById('result-panel').classList.remove('show');
+  document.getElementById('rp-next-btn').style.display = 'none';
+  document.getElementById('rp-winner-name').textContent = '';
+  document.getElementById('rp-winner-hand').textContent = '';
+  document.getElementById('rp-winner-cards').innerHTML = '';
+  document.getElementById('rp-other-hands').innerHTML = '';
+  document.getElementById('rp-winner-label').textContent = '';
+}
+
+function nextHandFromPanel() {
+  hideResultPanel();
+  if (pendingGameOver) {
+    showGameOverOverlay(pendingGameOver);
+  } else {
+    socket.emit('next_hand');
+  }
+}
+
+function closeShowdownOverlay() {
+  // 兼容旧逻辑，实际不再使用弹窗
+  document.getElementById('showdown-overlay').classList.remove('show');
+  if (pendingGameOver) {
+    showGameOverOverlay(pendingGameOver);
+  } else {
+    document.getElementById('btn-next').style.display = 'inline-block';
+    renderShowdownMsg(gameState);
+  }
+}
   if (!data.showdownData) return;
   data.showdownData.forEach(sd => {
     if (sd.id === data.myId) return;
@@ -1234,6 +1358,7 @@ function switchToGame() {
   const cc = document.getElementById('community-cards');
   cc.innerHTML = '';
   for (let i=0;i<5;i++) cc.insertAdjacentHTML('beforeend', phCard());
+  hideResultPanel();
 }
 </script>
 </body>
