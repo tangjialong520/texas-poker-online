@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🃏 德州扑克 管理后台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── 登录界面 ── */
+  #login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .login-box {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 40px;
+    width: 360px;
+    text-align: center;
+  }
+  .login-box h1 { font-size: 28px; margin-bottom: 8px; }
+  .login-box p  { color: #8b949e; margin-bottom: 28px; font-size: 14px; }
+  .login-box input {
+    width: 100%;
+    padding: 12px 16px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    color: #c9d1d9;
+    font-size: 15px;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .login-box input:focus { border-color: #58a6ff; }
+  .login-box button {
+    width: 100%;
+    padding: 12px;
+    background: #238636;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .login-box button:hover { background: #2ea043; }
+  #login-err { color: #f85149; font-size: 13px; margin-top: 10px; }
+
+  /* ── 主界面 ── */
+  #main-screen { display: none; }
+
+  .topbar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar h1 { font-size: 18px; color: #f0c040; }
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #3fb950;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .refresh-badge {
+    font-size: 12px;
+    color: #8b949e;
+    background: #21262d;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .btn-logout {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .2s;
+  }
+  .btn-logout:hover { border-color: #f85149; color: #f85149; }
+
+  .container { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+  /* ── 统计卡片 ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 20px;
+    transition: border-color .2s;
+  }
+  .stat-card:hover { border-color: #58a6ff; }
+  .stat-label {
+    font-size: 12px;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #f0f6fc;
+    line-height: 1;
+  }
+  .stat-value.green { color: #3fb950; }
+  .stat-value.yellow { color: #f0c040; }
+  .stat-value.blue { color: #58a6ff; }
+  .stat-sub { font-size: 12px; color: #8b949e; margin-top: 6px; }
+
+  /* ── 房间列表 ── */
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f0f6fc;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    background: #21262d;
+    color: #8b949e;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  .empty-state {
+    background: #161b22;
+    border: 1px dashed #30363d;
+    border-radius: 10px;
+    padding: 48px;
+    text-align: center;
+    color: #8b949e;
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+  .room-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .room-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #21262d;
+  }
+  .room-info { display: flex; align-items: center; gap: 14px; }
+  .room-id {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: monospace;
+    color: #f0c040;
+  }
+  .phase-tag {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .phase-preflop  { background: #1f2d1f; color: #3fb950; }
+  .phase-flop     { background: #1a2a3a; color: #58a6ff; }
+  .phase-turn     { background: #2a1f2a; color: #bc8cff; }
+  .phase-river    { background: #2a1a1a; color: #f85149; }
+  .phase-showdown { background: #2a2a1a; color: #f0c040; }
+  .phase-waiting  { background: #21262d; color: #8b949e; }
+
+  .room-meta { font-size: 13px; color: #8b949e; display: flex; gap: 16px; }
+  .room-meta span { display: flex; align-items: center; gap: 4px; }
+
+  .btn-close-room {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #f85149;
+    border-radius: 6px;
+    color: #f85149;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .2s;
+  }
+  .btn-close-room:hover { background: #f85149; color: #fff; }
+
+  /* 玩家列表 */
+  .player-list { padding: 12px 20px; }
+  .player-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 8px;
+    transition: background .15s;
+  }
+  .player-row:hover { background: #21262d; }
+  .player-left { display: flex; align-items: center; gap: 10px; }
+  .player-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #238636;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .player-name { font-size: 14px; font-weight: 500; }
+  .player-chips { font-size: 12px; color: #8b949e; margin-top: 2px; }
+  .btn-kick {
+    padding: 4px 12px;
+    background: transparent;
+    border: 1px solid #30363d;
+    border-radius: 5px;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all .2s;
+  }
+  .btn-kick:hover { border-color: #f85149; color: #f85149; }
+
+  /* ── 操作日志 ── */
+  .log-panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    margin-top: 28px;
+  }
+  .log-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .log-header span { font-size: 14px; font-weight: 600; }
+  .btn-clear-log {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid #30363d;
+    border-radius: 5px;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .btn-clear-log:hover { color: #f0f6fc; border-color: #8b949e; }
+  #op-log {
+    padding: 12px 20px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+  }
+  .log-entry { padding: 3px 0; color: #8b949e; }
+  .log-entry .log-time { color: #30363d; margin-right: 8px; }
+  .log-entry.ok   .log-msg { color: #3fb950; }
+  .log-entry.err  .log-msg { color: #f85149; }
+  .log-entry.info .log-msg { color: #58a6ff; }
+
+  /* 确认弹窗 */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 28px;
+    width: 360px;
+  }
+  .modal h3 { font-size: 17px; margin-bottom: 10px; }
+  .modal p  { font-size: 14px; color: #8b949e; margin-bottom: 20px; }
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-btns button {
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .btn-cancel { background: #21262d; color: #c9d1d9; }
+  .btn-cancel:hover { background: #30363d; }
+  .btn-confirm-danger { background: #da3633; color: #fff; }
+  .btn-confirm-danger:hover { background: #f85149; }
+
+  /* 加载动画 */
+  .loading { text-align: center; padding: 40px; color: #8b949e; }
+</style>
+</head>
+<body>
+
+<!-- 登录界面 -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🃏</h1>
+    <h1 style="margin-top:8px">德州扑克</h1>
+    <p style="margin-top:4px">管理后台</p>
+    <input type="password" id="pass-input" placeholder="请输入管理密码" autocomplete="off">
+    <button onclick="doLogin()">进入后台</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div id="main-screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="status-dot" id="conn-dot"></div>
+      <h1>🃏 德州扑克 管理后台</h1>
+    </div>
+    <div class="topbar-right">
+      <span class="refresh-badge" id="refresh-badge">5s 后刷新</span>
+      <button class="btn-logout" onclick="doLogout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 统计卡片 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">🟢 当前在线</div>
+        <div class="stat-value green" id="st-online">—</div>
+        <div class="stat-sub">真人玩家</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🏠 活跃房间</div>
+        <div class="stat-value yellow" id="st-rooms">—</div>
+        <div class="stat-sub">进行中</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🏆 历史峰值</div>
+        <div class="stat-value blue" id="st-peak">—</div>
+        <div class="stat-sub">同时在线人数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">⏱ 运行时长</div>
+        <div class="stat-value" id="st-uptime" style="font-size:20px;padding-top:6px">—</div>
+        <div class="stat-sub">自上次启动</div>
+      </div>
+    </div>
+
+    <!-- 房间列表 -->
+    <div class="section-title">
+      🏠 房间列表
+      <span class="badge" id="room-count-badge">0</span>
+    </div>
+    <div id="room-list-wrap">
+      <div class="loading">加载中...</div>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="log-panel">
+      <div class="log-header">
+        <span>📋 操作日志</span>
+        <button class="btn-clear-log" onclick="clearLog()">清空</button>
+      </div>
+      <div id="op-log">
+        <div class="log-entry info"><span class="log-time" id="init-time"></span><span class="log-msg">后台已连接</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">确认操作</h3>
+    <p id="modal-body">确定要执行此操作吗？</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-confirm-danger" id="modal-confirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminPass = '';
+let refreshTimer = null;
+let countdownTimer = null;
+let countdownVal = 5;
+let modalCallback = null;
+
+// ── 登录 ──
+function doLogin() {
+  const p = document.getElementById('pass-input').value.trim();
+  if (!p) return;
+  adminPass = p;
+  fetchStatus(true);
+}
+
+document.getElementById('pass-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function doLogout() {
+  adminPass = '';
+  clearInterval(refreshTimer);
+  clearInterval(countdownTimer);
+  document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('pass-input').value = '';
+}
+
+// ── 数据获取 ──
+async function fetchStatus(isLogin = false) {
+  try {
+    const res = await fetch(`/api/admin/status?pass=${encodeURIComponent(adminPass)}`);
+    if (res.status === 403) {
+      document.getElementById('login-err').textContent = '密码错误，请重试';
+      adminPass = '';
+      return;
+    }
+    const data = await res.json();
+
+    if (isLogin) {
+      document.getElementById('login-err').textContent = '';
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-screen').style.display = 'block';
+      document.getElementById('init-time').textContent = nowStr();
+      startAutoRefresh();
+      addLog('info', '登录成功，开始监控');
+    }
+
+    renderStats(data);
+    renderRooms(data.rooms);
+    setConnDot(true);
+  } catch(e) {
+    setConnDot(false);
+    if (!isLogin) addLog('err', '数据获取失败: ' + e.message);
+  }
+}
+
+function startAutoRefresh() {
+  countdownVal = 5;
+  updateCountdown();
+  countdownTimer = setInterval(() => {
+    countdownVal--;
+    updateCountdown();
+    if (countdownVal <= 0) {
+      countdownVal = 5;
+      fetchStatus();
+    }
+  }, 1000);
+}
+
+function updateCountdown() {
+  document.getElementById('refresh-badge').textContent = `${countdownVal}s 后刷新`;
+}
+
+// ── 渲染统计 ──
+function renderStats(data) {
+  document.getElementById('st-online').textContent = data.totalOnline;
+  document.getElementById('st-rooms').textContent  = data.roomCount;
+  document.getElementById('st-peak').textContent   = data.peakOnline;
+  document.getElementById('st-uptime').textContent = data.uptime;
+}
+
+// ── 渲染房间 ──
+const PHASE_LABELS = {
+  preflop: '翻牌前', flop: '翻牌', turn: '转牌',
+  river: '河牌', showdown: '结算', waiting: '等待中'
+};
+
+function renderRooms(rooms) {
+  document.getElementById('room-count-badge').textContent = rooms.length;
+  const wrap = document.getElementById('room-list-wrap');
+
+  if (rooms.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div class="icon">🃏</div><div>暂无活跃房间</div></div>`;
+    return;
+  }
+
+  wrap.innerHTML = rooms.map(room => `
+    <div class="room-card">
+      <div class="room-header">
+        <div class="room-info">
+          <div class="room-id">#${room.shortId}</div>
+          <span class="phase-tag phase-${room.phase || 'waiting'}">
+            ${PHASE_LABELS[room.phase] || room.phase || '等待'}
+          </span>
+          <div class="room-meta">
+            <span>👥 ${room.playerCount}人</span>
+            <span>🃏 第${room.roundNum}手</span>
+            <span>💰 底池 ${room.pot}</span>
+          </div>
+        </div>
+        <button class="btn-close-room" onclick="confirmCloseRoom('${room.id}', '${room.shortId}')">
+          关闭房间
+        </button>
+      </div>
+      <div class="player-list">
+        ${room.players.length === 0
+          ? '<div style="color:#8b949e;font-size:13px;padding:4px 0">暂无玩家</div>'
+          : room.players.map(p => `
+            <div class="player-row">
+              <div class="player-left">
+                <div class="player-avatar">${p.name.slice(0,1).toUpperCase()}</div>
+                <div>
+                  <div class="player-name">${escHtml(p.name)}</div>
+                  <div class="player-chips">💰 ${p.chips} 筹码</div>
+                </div>
+              </div>
+              <button class="btn-kick" onclick="confirmKick('${p.socketId}', '${escHtml(p.name)}')">
+                踢出
+              </button>
+            </div>
+          `).join('')
+        }
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── 踢人 ──
+function confirmKick(socketId, name) {
+  showModal(
+    `踢出玩家`,
+    `确定要将 <strong>${name}</strong> 踢出游戏吗？`,
+    async () => {
+      try {
+        const res = await fetch('/api/admin/kick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pass: adminPass, socketId, reason: '管理员将你踢出' }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+          addLog('ok', `已踢出玩家: ${name}`);
+          fetchStatus();
+        } else {
+          addLog('err', `踢出失败: ${d.error}`);
+        }
+      } catch(e) { addLog('err', '操作失败: ' + e.message); }
+    }
+  );
+}
+
+// ── 关闭房间 ──
+function confirmCloseRoom(roomId, shortId) {
+  showModal(
+    `关闭房间`,
+    `确定要关闭房间 <strong>#${shortId}</strong> 吗？房间内所有玩家将被断开连接。`,
+    async () => {
+      try {
+        const res = await fetch('/api/admin/close-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pass: adminPass, roomId }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+          addLog('ok', `已关闭房间 #${shortId}`);
+          fetchStatus();
+        } else {
+          addLog('err', `关闭失败: ${d.error}`);
+        }
+      } catch(e) { addLog('err', '操作失败: ' + e.message); }
+    }
+  );
+}
+
+// ── 弹窗 ──
+function showModal(title, body, onConfirm) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal').classList.add('show');
+  modalCallback = onConfirm;
+  document.getElementById('modal-confirm').onclick = () => {
+    closeModal();
+    if (modalCallback) modalCallback();
+  };
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  modalCallback = null;
+}
+
+// ── 日志 ──
+function addLog(type, msg) {
+  const log = document.getElementById('op-log');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  entry.innerHTML = `<span class="log-time">${nowStr()}</span><span class="log-msg">${escHtml(msg)}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+function clearLog() { document.getElementById('op-log').innerHTML = ''; }
+
+// ── 工具 ──
+function setConnDot(ok) {
+  document.getElementById('conn-dot').style.background = ok ? '#3fb950' : '#f85149';
+}
+function nowStr() {
+  const d = new Date();
+  return d.toLocaleTimeString('zh-CN', { hour12: false });
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

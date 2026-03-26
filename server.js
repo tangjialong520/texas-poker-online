@@ -1097,11 +1097,122 @@ io.on('connection', (socket) => {
 });
 
 // ════════════════════════════════════════════
+//  管理后台 API
+// ════════════════════════════════════════════
+const SERVER_START_TIME = Date.now();
+let peakOnline = 0; // 历史峰值在线人数
+
+// 统计当前在线总人数
+function getTotalOnline() {
+  let total = 0;
+  rooms.forEach(room => {
+    total += room.G.players.filter(p => p.isHuman && p.socketId).length;
+  });
+  return total;
+}
+
+// 更新峰值
+function updatePeak() {
+  const cur = getTotalOnline();
+  if (cur > peakOnline) peakOnline = cur;
+}
+
+// 格式化运行时间
+function formatUptime(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}小时${m}分${sec}秒`;
+  if (m > 0) return `${m}分${sec}秒`;
+  return `${sec}秒`;
+}
+
+// 管理后台密码（简单保护）
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin888';
+
+app.use(express.json());
+
+// 管理后台页面
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'admin.html'));
+});
+
+// 获取状态 API
+app.get('/api/admin/status', (req, res) => {
+  const { pass } = req.query;
+  if (pass !== ADMIN_PASS) return res.status(403).json({ error: '密码错误' });
+
+  updatePeak();
+  const roomList = [];
+  rooms.forEach((room, id) => {
+    const G = room.G;
+    const humans = G.players.filter(p => p.isHuman && p.socketId);
+    roomList.push({
+      id,
+      shortId: id.slice(0, 6).toUpperCase(),
+      playerCount: humans.length,
+      totalSeats: G.players.length,
+      phase: G.phase,
+      roundNum: G.roundNum || 0,
+      pot: G.pot || 0,
+      players: humans.map(p => ({
+        id: p.id,
+        name: p.name,
+        chips: p.chips,
+        socketId: p.socketId,
+      })),
+    });
+  });
+
+  res.json({
+    roomCount: rooms.size,
+    totalOnline: getTotalOnline(),
+    peakOnline,
+    uptime: formatUptime(Date.now() - SERVER_START_TIME),
+    uptimeMs: Date.now() - SERVER_START_TIME,
+    rooms: roomList,
+  });
+});
+
+// 踢出玩家 API
+app.post('/api/admin/kick', (req, res) => {
+  const { pass, socketId, reason } = req.body;
+  if (pass !== ADMIN_PASS) return res.status(403).json({ error: '密码错误' });
+
+  const socket = io.sockets.sockets.get(socketId);
+  if (!socket) return res.status(404).json({ error: '玩家不在线' });
+
+  socket.emit('kicked', { reason: reason || '管理员将你踢出' });
+  socket.disconnect(true);
+  res.json({ ok: true });
+});
+
+// 关闭房间 API
+app.post('/api/admin/close-room', (req, res) => {
+  const { pass, roomId } = req.body;
+  if (pass !== ADMIN_PASS) return res.status(403).json({ error: '密码错误' });
+
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '房间不存在' });
+
+  io.to(roomId).emit('room_closed', { reason: '管理员关闭了房间' });
+  // 断开所有房间内的 socket
+  room.G.players.filter(p => p.isHuman && p.socketId).forEach(p => {
+    const s = io.sockets.sockets.get(p.socketId);
+    if (s) s.disconnect(true);
+  });
+  rooms.delete(roomId);
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════
 //  启动
 // ════════════════════════════════════════════
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`\n🃏 德州扑克服务端已启动`);
   console.log(`   本地访问: http://localhost:${PORT}`);
+  console.log(`   管理后台: http://localhost:${PORT}/admin`);
   console.log(`   房间管理: ws://localhost:${PORT}\n`);
 });
